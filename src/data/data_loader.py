@@ -16,10 +16,12 @@ def set_seed(seed: int = 42):
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
 
+
 def geom_collate(batch):
     xs = torch.stack([item[0] for item in batch])     # U matrices
     ys = torch.tensor([item[1] for item in batch], dtype=torch.long)
     return xs, ys
+
 
 def graph_collate(batch):
     """
@@ -69,8 +71,6 @@ def graph_collate(batch):
     return U_batch, A_batch, y_batch
 
 
-
-
 # ---------------------------------------------------------------------
 # 3) Función general para splits + loaders
 # ---------------------------------------------------------------------
@@ -80,7 +80,7 @@ def get_dataloaders(
     seed: int = 42,
     train_ratio: float = 0.7,
     val_ratio: float = 0.15,
-    collate_fn=geom_collate):
+    collate_fn = geom_collate):
 
     set_seed(seed)
 

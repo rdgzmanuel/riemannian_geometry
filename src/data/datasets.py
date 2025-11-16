@@ -1,4 +1,3 @@
-# src/hdm05_grassmann/data/datasets.py
 from __future__ import annotations
 
 from collections.abc import Callable
@@ -9,7 +8,7 @@ import torch
 from torch.utils.data import Dataset
 from collections import defaultdict
 
-from ..config.paths import HDM05_GRASSMANN_DIR, HDM05_WINDOWS_DIR
+from ..config.paths import HDM05_GRASSMANN_DIR, HDM05_WINDOWS_DIR, HDM05_SPD_DIR
 
 
 def build_label_mapping(labels: list[str]) -> dict[str, int]:
@@ -90,6 +89,88 @@ class HDM05WindowsDataset(Dataset):
             x = torch.nn.functional.pad(x, (0, pad_d))  # pad feature dim
 
         return x, y
+    
+
+class HDM05SPDDataset(Dataset):
+    """
+    Dataset para modelos SPD:
+      Cada item es una matriz SPD (d,d) + etiqueta.
+      Se hace padding para igualar el tamaño máximo.
+    """
+
+    def __init__(
+        self,
+        root: Path = HDM05_SPD_DIR,
+        split_filter: Callable[[str], bool] | None = None,
+        transform: Callable | None = None,
+        key: str = "spds"
+    ):
+        """
+        root: carpeta con npz que contienen matrices SPD
+        key: clave dentro del npz (por defecto 'spds'),
+             p.ej. stored['spds'] -> (Nw, d, d)
+        """
+        self.root = Path(root)
+        self.transform = transform
+        self.key = key
+
+        self.files = sorted(self.root.glob("*.npz"))
+        self.items: list[tuple[Path, int]] = []
+        labels: list[str] = []
+
+        self.max_d = 0
+
+        # Escaneamos todos los ficheros y puntos
+        for f in self.files:
+            data = np.load(f, allow_pickle=True)
+            label = str(data["label"])
+            file_id = str(data["file_id"])
+
+            if split_filter is not None and not split_filter(file_id):
+                continue
+
+            spds = data[key]          # (Nw, d_i, d_i)
+            Nw, d_i, _ = spds.shape
+
+            # actualizamos el tamaño máximo
+            if d_i > self.max_d:
+                self.max_d = d_i
+
+            # cada ventana se guarda como item individual
+            for i in range(Nw):
+                self.items.append((f, i))
+                labels.append(label)
+
+        # asignamos mapping de labels
+        self.label2idx = build_label_mapping(labels)
+
+    def __len__(self):
+        return len(self.items)
+
+    def __getitem__(self, idx):
+        npz_path, spd_idx = self.items[idx]
+
+        data = np.load(npz_path, allow_pickle=True)
+        spds = data[self.key]        # (Nw, d, d)
+        label = str(data["label"])
+
+        X = spds[spd_idx]            # (d, d), SPD
+        X = torch.from_numpy(X).float()
+
+        d_i = X.shape[0]
+
+        # padding para llegar a max_d
+        if d_i < self.max_d:
+            pad = self.max_d - d_i
+            # pad: (left, right, top, bottom)
+            X = torch.nn.functional.pad(X, (0, pad, 0, pad))
+
+        if self.transform is not None:
+            X = self.transform(X)
+
+        y = torch.tensor(self.label2idx[label], dtype=torch.long)
+
+        return X, y
 
 
 class HDM05GrassmannDataset(Dataset):
