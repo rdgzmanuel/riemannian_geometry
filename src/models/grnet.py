@@ -45,7 +45,16 @@ class FRMapGeomstats(nn.Module):
 
         # Proyección al manifold Stiefel(d, p_out)
         # Geomstats usa el backend torch, así que esto es differentiable.
-        U_out = self.manifold.projection(Y)  # (B, d, p_out)
+        # U_out = self.manifold.projection(Y)  # (B, d, p_out)
+
+        # geomstats necesita CPU
+        Y_cpu = Y.detach().cpu()
+
+        # proyección sobre CPU
+        U_out_cpu = self.manifold.projection(Y_cpu)
+
+        # volvemos a gpu si es necesario
+        U_out = U_out_cpu.to(Y.device)
 
         return U_out
 
@@ -66,10 +75,10 @@ class GrassmannNetGeomstats(nn.Module):
 
     Pipeline:
       Input:  U ∈ ℝ^{B×d×p_in}  (subespacios)
-        → varias capas FRMapGeomstats (d × p_in → d × p_out)
-        → flatten
-        → MLP euclídeo
-        → logits de clasificación
+        - varias capas FRMapGeomstats (d × p_in → d × p_out)
+        - flatten
+        - MLP euclídeo
+        - logits de clasificación
     """
 
     def __init__(

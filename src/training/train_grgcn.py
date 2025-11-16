@@ -7,69 +7,13 @@ from collections import defaultdict
 
 import numpy as np
 import torch
-from src.data.datasets import HDM05GrassmannDataset
+from src.data.data_loader import get_dataloaders, graph_collate
+from src.data.datasets import HDM05GrassmannGraphDataset, HDM05GrassmannDataset
 from src.models.grgcn import GrGCNPlusPlusNetGeomstats
 from torch.utils.data import DataLoader, Dataset, random_split
 
 from .losses import get_classification_loss
 from .utils import get_device, save_checkpoint, set_seed
-
-
-class HDM05GrassmannGraphDataset(Dataset):
-    """
-    Dataset de grafos:
-      - Agrupa ventanas del mismo file_id en un grafo.
-      - Cada nodo: U ∈ R^{d×p}.
-      - Adyacencia temporal simple.
-    """
-
-    def __init__(self, base_ds: HDM05GrassmannDataset):
-        super().__init__()
-        self.base_ds = base_ds
-
-        # agrupar por file_id leyendo el npz original
-        groups = defaultdict(list)
-        labels_by_file = {}
-
-        for idx, (npz_path, win_idx) in enumerate(base_ds.items):
-            data = np.load(npz_path, allow_pickle=True)
-            file_id = str(data["file_id"])
-            label = str(data["label"])
-            groups[file_id].append(idx)
-            labels_by_file[file_id] = label
-
-        self.file_ids = list(groups.keys())
-        self.groups = groups
-        self.labels_by_file = labels_by_file
-
-        # label2idx común
-        all_labels = list(labels_by_file.values())
-        self.label2idx = {lbl: i for i, lbl in enumerate(sorted(set(all_labels)))}
-
-    def __len__(self):
-        return len(self.file_ids)
-
-    def __getitem__(self, idx):
-        file_id = self.file_ids[idx]
-        idxs = self.groups[file_id]
-
-        U_list = []
-        for si in idxs:
-            U, _ = self.base_ds[si]  # (d, p)
-            U_list.append(torch.tensor(U, dtype=torch.float32))
-
-        U = torch.stack(U_list, dim=0)  # (N, d, p)
-        N, d, p = U.shape
-
-        A = torch.eye(N)
-        if N > 1:
-            A[:-1, 1:] = torch.eye(N - 1)
-            A[1:, :-1] = torch.eye(N - 1)
-
-        y = self.label2idx[self.labels_by_file[file_id]]
-        y = torch.tensor(y, dtype=torch.long)
-
-        return U, A, y
 
 
 def parse_args():
@@ -102,13 +46,17 @@ def train_epoch(model, loader, device, criterion, optimizer):
     total_correct = 0
     n_samples = 0
 
-    for U, A, y in loader:
-        U = U.to(device)  # (B, N, d, p)
-        A = A.to(device)  # (B, N, N)
+    # for U, A, y in loader:
+    #     U = U.to(device)  # (B, N, d, p)
+    #     A = A.to(device)  # (B, N, N)
+    #     y = y.to(device)
+    for U_list, A_list, y in loader:
+        U_list = [u.to(device) for u in U_list]
+        A_list = [a.to(device) for a in A_list]
         y = y.to(device)
 
         optimizer.zero_grad()
-        logits = model(U, A)
+        logits = model(U_list, A_list)
         loss = criterion(logits, y)
         loss.backward()
         optimizer.step()
@@ -131,24 +79,23 @@ def main():
     base_ds = HDM05GrassmannDataset()
     graph_ds = HDM05GrassmannGraphDataset(base_ds)
 
-    n_total = len(graph_ds)
-    n_val = int(args.val_split * n_total)
-    n_train = n_total - n_val
-    train_ds, val_ds = random_split(graph_ds, [n_train, n_val])
+    seed = 42
+    batch_size = 32
 
-    train_loader = DataLoader(
-        train_ds, batch_size=args.batch_size, shuffle=True, num_workers=4
+    train_loader, val_loader, test_loader = get_dataloaders(
+        graph_ds,
+        batch_size=batch_size,
+        seed=seed,
+        collate_fn=graph_collate
     )
-    val_loader = DataLoader(
-        val_ds, batch_size=args.batch_size, shuffle=False, num_workers=4
-    )
+
 
     U0, A0, y0 = graph_ds[0]
     N0, d, p_in = U0.shape
     num_classes = len(graph_ds.label2idx)
 
     print(
-        f"📊 GrGCN++ Geomstats: d={d}, p_in={p_in}, gcn_layers={gcn_layers}, num_classes={num_classes}"
+        f"GrGCN++ Geomstats: d={d}, p_in={p_in}, gcn_layers={gcn_layers}, num_classes={num_classes}"
     )
 
     model = GrGCNPlusPlusNetGeomstats(
@@ -177,12 +124,17 @@ def main():
         total_samples = 0
 
         with torch.no_grad():
-            for U, A, y in val_loader:
-                U = U.to(device)
-                A = A.to(device)
+            # for U, A, y in val_loader:
+            #     U = U.to(device)
+            #     A = A.to(device)
+            #     y = y.to(device)
+
+            for U_list, A_list, y in val_loader:
+                U_list = [u.to(device) for u in U_list]
+                A_list = [a.to(device) for a in A_list]
                 y = y.to(device)
 
-                logits = model(U, A)
+                logits = model(U_list, A_list)
                 loss = criterion(logits, y)
 
                 total_loss += loss.item() * y.size(0)
@@ -202,7 +154,7 @@ def main():
             best_val_acc = val_acc
             save_checkpoint(args.checkpoint, model, optimizer, epoch, best_val_acc)
 
-    print(f"🏁 Finalizado. Mejor val_acc={best_val_acc * 100:.2f}%")
+    print(f"Finalizado. Mejor val_acc={best_val_acc * 100:.2f}%")
 
 
 if __name__ == "__main__":

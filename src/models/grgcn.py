@@ -97,11 +97,11 @@ class GrGCNPlusPlusNetGeomstats(nn.Module):
     Versión GrGCN++ usando Geomstats + representación Stiefel.
 
     Input: U (B, N, d, p_in), A (B, N, N) o (N, N)
-      → varias capas GrGCNLayerGeomstats
-      → pooling de nodos (GrassmannNodeMeanPool)
-      → flatten
-      → MLP euclídeo
-      → logits
+      - varias capas GrGCNLayerGeomstats
+      - pooling de nodos (GrassmannNodeMeanPool)
+      - flatten
+      - MLP euclídeo
+      - logits
     """
 
     def __init__(

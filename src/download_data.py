@@ -12,17 +12,17 @@ from tqdm import tqdm
 
 def download_file(url: str, out_path: str, overwrite: bool = False):
     if os.path.exists(out_path) and not overwrite:
-        print(f"✓ File already exists: {out_path}")
+        print(f" File already exists: {out_path}")
         return
 
-    print(f"⭳ Downloading {url}")
+    print(f" Downloading {url}")
 
     try:
         r = requests.get(url, stream=True)
         r.raise_for_status()
     except Exception:
-        print(f"✗ ERROR: {url} does NOT exist on the server")
-        print(f"→ Creating empty zip to allow pipeline to continue: {out_path}")
+        print(f"ERROR: {url} does NOT exist on the server")
+        print(f"Creating empty zip to allow pipeline to continue: {out_path}")
         with zipfile.ZipFile(out_path, "w") as z:
             pass
         return
@@ -41,7 +41,7 @@ def download_file(url: str, out_path: str, overwrite: bool = False):
                 f.write(chunk)
                 pbar.update(len(chunk))
 
-    print(f"✓ Downloaded: {out_path}")
+    print(f"Downloaded: {out_path}")
 
 
 # =========================
@@ -50,16 +50,16 @@ def download_file(url: str, out_path: str, overwrite: bool = False):
 
 
 def unzip_file(zip_path: str, extract_to: str):
-    print(f"📦 Extracting {zip_path} → {extract_to}")
+    print(f" Extracting {zip_path} → {extract_to}")
     os.makedirs(extract_to, exist_ok=True)
 
     try:
         with zipfile.ZipFile(zip_path, "r") as z:
             z.extractall(extract_to)
     except zipfile.BadZipFile:
-        print(f"⚠ WARNING: {zip_path} is not a valid zip (likely empty).")
+        print(f"WARNING: {zip_path} is not a valid zip (likely empty).")
 
-    print("✓ Extraction complete.")
+    print("Extraction complete.")
 
 
 # =========================
@@ -79,7 +79,7 @@ def move_all_c3d(from_dir: str, to_dir: str):
                 shutil.move(src, dst)
                 count += 1
 
-    print(f"✓ Moved {count} .c3d files → {to_dir}")
+    print(f"Moved {count} .c3d files → {to_dir}")
 
 
 # =========================
@@ -114,11 +114,11 @@ if __name__ == "__main__":
     move_all_c3d(full_extract, final_full)
 
     # ---- CLEANUP ----
-    print("🧹 Cleaning up…")
+    print("Cleaning up…")
     shutil.rmtree(cuts_extract, ignore_errors=True)
     shutil.rmtree(full_extract, ignore_errors=True)
 
     os.remove(cuts_zip_path)
     os.remove(full_zip_path)
 
-    print("🎉 DONE!")
+    print("DONE!")

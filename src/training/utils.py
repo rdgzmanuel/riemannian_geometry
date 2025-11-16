@@ -41,7 +41,7 @@ def save_checkpoint(path: str, model, optimizer, epoch: int, best_val_acc: float
     )
     os.makedirs(os.path.dirname(path), exist_ok=True)
     torch.save(ckpt.__dict__, path)
-    print(f"💾 Checkpoint guardado en {path}")
+    print(f"Checkpoint guardado en {path}")
 
 
 def load_checkpoint(path: str, model, optimizer=None):
@@ -49,7 +49,7 @@ def load_checkpoint(path: str, model, optimizer=None):
     model.load_state_dict(data["model_state"])
     if optimizer is not None and "optimizer_state" in data:
         optimizer.load_state_dict(data["optimizer_state"])
-    print(f"📦 Checkpoint cargado desde {path}")
+    print(f"Checkpoint cargado desde {path}")
     return data.get("epoch", 0), data.get("best_val_acc", 0.0)
 
 

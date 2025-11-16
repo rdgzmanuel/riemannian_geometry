@@ -6,6 +6,7 @@ import argparse
 
 import torch
 from src.data.datasets import HDM05GrassmannDataset
+from src.data.data_loader import get_dataloaders
 from src.models.grnet import GrassmannNetGeomstats
 from torch.utils.data import DataLoader, random_split
 
@@ -42,29 +43,26 @@ def main():
     args = parse_args()
     set_seed(args.seed)
     device = get_device()
-
     fr_layers = parse_int_list(args.fr_layers)
     hidden_dims = parse_int_list(args.hidden_dims)
 
-    full_ds = HDM05GrassmannDataset()
-    n_total = len(full_ds)
-    n_val = int(args.val_split * n_total)
-    n_train = n_total - n_val
-    train_ds, val_ds = random_split(full_ds, [n_train, n_val])
+    ds = HDM05GrassmannDataset()
+    seed = 42
+    batch_size = 32
 
-    train_loader = DataLoader(
-        train_ds, batch_size=args.batch_size, shuffle=True, num_workers=4
-    )
-    val_loader = DataLoader(
-        val_ds, batch_size=args.batch_size, shuffle=False, num_workers=4
+    train_loader, val_loader, test_loader = get_dataloaders(
+        ds,
+        batch_size=batch_size,
+        seed=seed
     )
 
-    U0, y0 = full_ds[0]  # U0: (d, p)
+
+    U0, y0 = ds[0]  # U0: (d, p)
     d, p_in = U0.shape
-    num_classes = len(full_ds.label2idx)
+    num_classes = len(ds.label2idx)
 
     print(
-        f"📊 GrassmannNetGeomstats: d={d}, p_in={p_in}, fr_layers={fr_layers}, num_classes={num_classes}"
+        f"GrassmannNetGeomstats: d={d}, p_in={p_in}, fr_layers={fr_layers}, num_classes={num_classes}"
     )
 
     model = GrassmannNetGeomstats(
@@ -89,6 +87,9 @@ def main():
         for U, y in train_loader:
             U = U.to(device)  # (B, d, p)
             y = y.to(device)
+        # for x, y in train_loader:     # U_list es una LISTA, no tensor
+        #     U_list = [u.to(device) for u in U_list]
+        #     y = y.to(device)
 
             optimizer.zero_grad()
             logits = model(U)
@@ -113,7 +114,7 @@ def main():
             best_val_acc = val_acc
             save_checkpoint(args.checkpoint, model, optimizer, epoch, best_val_acc)
 
-    print(f"🏁 Finalizado. Mejor val_acc={best_val_acc * 100:.2f}%")
+    print(f"Finalizado. Mejor val_acc={best_val_acc * 100:.2f}%")
 
 
 if __name__ == "__main__":

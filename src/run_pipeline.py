@@ -33,44 +33,44 @@ def main():
     # ----------------------------------------------------------
     # 0. Verificar que hay .c3d disponibles
     # ----------------------------------------------------------
-    print("\n🔍 Verificando datos RAW .c3d...")
+    print("\n Verificando datos RAW .c3d...")
     c3d_files = list_c3d_files(use_cuts=True, pattern="*.C3D")
     if len(c3d_files) == 0:
-        print(f"❌ ERROR: No se encontraron .c3d en {HDM05_CUTS_C3D_DIR}")
+        print(f" ERROR: No se encontraron .c3d en {HDM05_CUTS_C3D_DIR}")
         print("Ejecuta antes: scripts/download_hdm05.py")
         return
-    print(f"✓ Se encontraron {len(c3d_files)} archivos .c3d")
+    print(f" Se encontraron {len(c3d_files)} archivos .c3d")
 
     # ----------------------------------------------------------
     # 1. Preprocesado: raw → interim
     # ----------------------------------------------------------
-    print("\n🏗  [1/3] Preprocesando esqueletos (raw → interim)...")
+    print("\n [1/3] Preprocesando esqueletos (raw → interim)...")
     preprocess_all(src_dir=HDM05_CUTS_C3D_DIR, dst_dir=INTERIM_DIR)
-    print("✓ Preprocesado completado.")
+    print(" Preprocesado completado.")
 
     # ----------------------------------------------------------
     # 2. Ventanas: interim → windows
     # ----------------------------------------------------------
-    print("\n🏗  [2/3] Generando ventanas (interim → windows)...")
+    print("\n [2/3] Generando ventanas (interim → windows)...")
     build_all_windows(src_dir=INTERIM_DIR, dst_dir=HDM05_WINDOWS_DIR)
-    print("✓ Ventanas generadas.")
+    print(" Ventanas generadas.")
 
     # ----------------------------------------------------------
     # 3. Grassmann: windows → grassmann
     # ----------------------------------------------------------
-    print("\n🏗  [3/3] Generando representación Grassmann...")
+    print("\n [3/3] Generando representación Grassmann...")
     build_all_grassmann(src_dir=HDM05_WINDOWS_DIR, dst_dir=HDM05_GRASSMANN_DIR)
-    print("✓ Representaciones Grassmann generadas.")
+    print(" Representaciones Grassmann generadas.")
 
     # ----------------------------------------------------------
     # FIN
     # ----------------------------------------------------------
-    print("\n🎉 PIPELINE COMPLETADA CON ÉXITO")
-    print("📁 Resultados:")
+    print("\n PIPELINE COMPLETADA CON ÉXITO")
+    print("Resultados:")
     print(f"  - Secuencias limpias: {INTERIM_DIR}")
     print(f"  - Ventanas:           {HDM05_WINDOWS_DIR}")
     print(f"  - Grassmann:          {HDM05_GRASSMANN_DIR}")
-    print("🚀 Listo para entrenar GRNet o baselines.")
+    print(" Listo para entrenar GRNet o baselines.")
 
 
 if __name__ == "__main__":

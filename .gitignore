@@ -1,5 +1,8 @@
 # Data folder
 data/
+experiments/
+# …pero permitir src/data/
+!src/data/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
