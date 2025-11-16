@@ -20,7 +20,7 @@ def parse_args():
     parser = argparse.ArgumentParser(
         description="Entrenamiento GrGCN++ (Geomstats) en HDM05"
     )
-    parser.add_argument("--batch_size", type=int, default=4)
+    parser.add_argument("--batch_size", type=int, default=32)
     parser.add_argument("--epochs", type=int, default=30)
     parser.add_argument("--lr", type=float, default=1e-3)
     parser.add_argument("--seed", type=int, default=42)
@@ -79,8 +79,8 @@ def main():
     base_ds = HDM05GrassmannDataset()
     graph_ds = HDM05GrassmannGraphDataset(base_ds)
 
-    seed = 42
-    batch_size = 32
+    seed = args.seed
+    batch_size = args.batch_size
 
     train_loader, val_loader, test_loader = get_dataloaders(
         graph_ds,

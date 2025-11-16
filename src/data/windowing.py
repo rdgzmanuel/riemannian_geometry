@@ -12,6 +12,33 @@ import numpy as np
 # HDM05_WINDOWS_DIR = PROCESSED_DIR / "hdm05_windows"
 from ..config.paths import HDM05_WINDOWS_DIR, INTERIM_DIR
 
+import re
+
+def extract_clean_label(npz_path: Path) -> str:
+    """
+    A partir de un archivo tipo:
+      HDM_bd_<CLASE><sufijo>_<rep>_<fps>.C3D
+    devuelve la clase limpia:
+      - Elimina "Reps", "hops"...
+      - Elimina números finales
+      - Mantiene números internos del nombre
+    """
+
+    stem = npz_path.stem                     # HDM_bd_cartwheelLHandStart1Reps_003_120
+    parts = stem.split("_")
+    raw = parts[2]                           # "cartwheelLHandStart1Reps"
+
+    # 1) quitar sufijo "Reps", si existe
+    raw = re.sub(r"Reps$", "", raw)
+
+    # 2) quitar sufijo que empieza en un número seguido de letras (ej: "3hops")
+    raw = re.sub(r"\d+[A-Za-z]+$", "", raw)
+
+    # 3) quitar número final simple (ej: "1" en "Start1")
+    raw = re.sub(r"\d+$", "", raw)
+
+    return raw
+
 
 def skeleton_to_flat(
     skel: np.ndarray,
@@ -70,7 +97,8 @@ def build_windows_for_file(
     windows = np.stack(wins).astype(np.float32)
 
     # Ejemplo: nombre tipo "cartwheel_r01.npz" → clase "cartwheel"
-    label = npz_path.stem.split("_")[0]
+    # label = npz_path.stem.split("_")[0]
+    label = extract_clean_label(npz_path)
 
     return windows, label
 

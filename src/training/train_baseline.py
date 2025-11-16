@@ -17,7 +17,7 @@ from .utils import get_device, save_checkpoint, set_seed
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Entrenamiento baseline MLP en HDM05")
-    parser.add_argument("--batch_size", type=int, default=64)
+    parser.add_argument("--batch_size", type=int, default=32)
     parser.add_argument("--epochs", type=int, default=30)
     parser.add_argument("--lr", type=float, default=1e-3)
     parser.add_argument("--seed", type=int, default=42)
@@ -27,6 +27,8 @@ def parse_args():
     )
     return parser.parse_args()
 
+def parse_int_list(s: str):
+    return [int(x) for x in s.split(",") if x.strip()]
 
 def main():
     args = parse_args()
@@ -40,8 +42,8 @@ def main():
     # ------------------------------------------------------------------
     ds = HDM05WindowsDataset()  # usa rutas por defecto
 
-    seed = 42
-    batch_size = 32
+    seed = args.seed
+    batch_size = args.batch_size
 
     train_loader, val_loader, test_loader = get_dataloaders(
         ds,

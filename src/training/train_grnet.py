@@ -19,7 +19,7 @@ def parse_args():
     parser = argparse.ArgumentParser(
         description="Entrenamiento GrNet (Geomstats) en HDM05"
     )
-    parser.add_argument("--batch_size", type=int, default=64)
+    parser.add_argument("--batch_size", type=int, default=32)
     parser.add_argument("--epochs", type=int, default=30)
     parser.add_argument("--lr", type=float, default=1e-3)
     parser.add_argument("--seed", type=int, default=42)
@@ -47,8 +47,8 @@ def main():
     hidden_dims = parse_int_list(args.hidden_dims)
 
     ds = HDM05GrassmannDataset()
-    seed = 42
-    batch_size = 32
+    seed = args.seed
+    batch_size = args.batch_size
 
     train_loader, val_loader, test_loader = get_dataloaders(
         ds,
