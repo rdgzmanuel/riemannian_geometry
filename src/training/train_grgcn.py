@@ -46,17 +46,17 @@ def train_epoch(model, loader, device, criterion, optimizer):
     total_correct = 0
     n_samples = 0
 
-    # for U, A, y in loader:
-    #     U = U.to(device)  # (B, N, d, p)
-    #     A = A.to(device)  # (B, N, N)
-    #     y = y.to(device)
-    for U_list, A_list, y in loader:
-        U_list = [u.to(device) for u in U_list]
-        A_list = [a.to(device) for a in A_list]
+    for U, A, y in loader:
+        U = U.to(device)  # (B, N, d, p)
+        A = A.to(device)  # (B, N, N)
         y = y.to(device)
+    # for U_list, A_list, y in loader:
+    #     U_list = [u.to(device) for u in U_list]
+    #     A_list = [a.to(device) for a in A_list]
+    #     y = y.to(device)
 
         optimizer.zero_grad()
-        logits = model(U_list, A_list)
+        logits = model(U, A)
         loss = criterion(logits, y)
         loss.backward()
         optimizer.step()
@@ -124,17 +124,17 @@ def main():
         total_samples = 0
 
         with torch.no_grad():
-            # for U, A, y in val_loader:
-            #     U = U.to(device)
-            #     A = A.to(device)
-            #     y = y.to(device)
-
-            for U_list, A_list, y in val_loader:
-                U_list = [u.to(device) for u in U_list]
-                A_list = [a.to(device) for a in A_list]
+            for U, A, y in val_loader:
+                U = U.to(device)
+                A = A.to(device)
                 y = y.to(device)
 
-                logits = model(U_list, A_list)
+            # for U_list, A_list, y in val_loader:
+            #     U_list = [u.to(device) for u in U_list]
+            #     A_list = [a.to(device) for a in A_list]
+            #     y = y.to(device)
+
+                logits = model(U, A)
                 loss = criterion(logits, y)
 
                 total_loss += loss.item() * y.size(0)

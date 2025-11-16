@@ -16,92 +16,57 @@ def set_seed(seed: int = 42):
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
 
-MAX_LEN = 150
-
-# def geom_collate(batch):
-#     xs_list = [item[0] for item in batch]   # lista de tensores (T_i, d)
-#     ys = torch.tensor([item[1] for item in batch], dtype=torch.long)
-
-#     padded = []
-#     for x in xs_list:
-#         T, d = x.size()
-
-#         # --- TRUNCATE ---
-#         if T > MAX_LEN:
-#             x = x[:MAX_LEN, :]   # truncar tiempo
-
-#         # --- PAD ---
-#         elif T < MAX_LEN:
-#             pad_len = MAX_LEN - T
-#             # pad en la dimensión temporal
-#             # F.pad argumento: (pad_last_dim, pad_last_dim2, pad_first_dim, pad_first_dim2)
-#             x = F.pad(x, (0, 0, 0, pad_len))  # padd al final en T
-
-#         padded.append(x)
-
-#     xs = torch.stack(padded, dim=0)  # (B, 150, d)
-#     return xs, ys
-
-# def geom_collate(batch):
-#     """
-#     Collate para HDM05WindowsDataset:
-#     - x: (T, d_i) con d_i variable
-#     - y: label
-    
-#     Solución: padding en la dimensión d para que todas sean (T, d_max).
-#     """
-#     xs_list = [item[0] for item in batch]   # cada x: (T, d_i)
-#     ys = torch.tensor([item[1] for item in batch], dtype=torch.long)
-
-#     # T es fijo. d_i cambia.
-#     T = xs_list[0].size(0)
-#     d_max = max(x.size(1) for x in xs_list)
-
-#     padded = []
-#     for x in xs_list:
-#         d_i = x.size(1)
-#         if d_i < d_max:
-#             # pad dimensión de características
-#             pad_amount = d_max - d_i
-#             # pad: (left, right, top, bottom) pero aquí (0, pad_amount) en d
-#             x = torch.nn.functional.pad(x, (0, pad_amount))
-#         padded.append(x)
-
-#     xs = torch.stack(padded, dim=0)   # (B, T, d_max)
-#     return xs, ys
-
-
-# ---------------------------------------------------------------------
-# 2) Collate geométrico — devuelve tensor de matrices y tensor de labels
-# ---------------------------------------------------------------------
-# def geom_collate(batch):
-#     xs_list = [item[0] for item in batch]   # lista de (T_i, d)
-#     ys = torch.tensor([item[1] for item in batch], dtype=torch.long)
-
-#     # lengths = [x.size(0) for x in xs_list]
-#     T_max = max(x.size(0) for x in xs_list)
-#     d = xs_list[0].size(1)
-
-#     padded = []
-#     for x in xs_list:
-#         pad_len = T_max - x.size(0)
-#         if pad_len > 0:
-#             x = torch.nn.functional.pad(x, (0, 0, 0, pad_len))  # pad time dimension
-#         padded.append(x)
-
-#     xs = torch.stack(padded, dim=0)  # (B, T_max, d)
-#     return xs, ys
-
 def geom_collate(batch):
     xs = torch.stack([item[0] for item in batch])     # U matrices
     ys = torch.tensor([item[1] for item in batch], dtype=torch.long)
     return xs, ys
 
 def graph_collate(batch):
+    """
+    batch = [(U, A, y), ...]
+      - U: (N_i, d, p)  (N_i = nº nodos del grafo i)
+      - A: (N_i, N_i)
+      - y: escalar
+
+    Devolvemos:
+      - U_batch: (B, N_max, d, p)
+      - A_batch: (B, N_max, N_max)
+      - y_batch: (B,)
+    con padding de nodos (nodos “dummy” sin conexiones).
+    """
     U_list = [item[0] for item in batch]
     A_list = [item[1] for item in batch]
     y_batch = torch.tensor([item[2] for item in batch], dtype=torch.long)
-    return U_list, A_list, y_batch
+    
+    # tamaños base
+    N_max = max(U.shape[0] for U in U_list)
+    d = U_list[0].shape[1]
+    p = U_list[0].shape[2]
+
+    U_padded = []
+    A_padded = []
+
+    for U, A in zip(U_list, A_list):
+        N = U.shape[0]
+        # pad nodos si hace falta
+        if N < N_max:
+            pad_nodes = N_max - N
+
+            # U: (N, d, p) -> (N_max, d, p)
+            # pad: (pad_last_dim_p0, pad_last_dim_p1, pad_dim1_0, pad_dim1_1, pad_dim0_0, pad_dim0_1)
+            U = F.pad(U, (0, 0, 0, 0, 0, pad_nodes))
+
+            # A: (N, N) -> (N_max, N_max)
+            # pad: (left, right, top, bottom) en 2D
+            A = F.pad(A, (0, pad_nodes, 0, pad_nodes))
+
+        U_padded.append(U)
+        A_padded.append(A)
+
+    U_batch = torch.stack(U_padded, dim=0)  # (B, N_max, d, p)
+    A_batch = torch.stack(A_padded, dim=0)  # (B, N_max, N_max)
+
+    return U_batch, A_batch, y_batch
 
 
 

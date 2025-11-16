@@ -65,7 +65,17 @@ class GrGCNLayerGeomstats(nn.Module):
         # Proyección al manifold por nodo:
         # apilamos (B*N, d, p_out), proyectamos, des-apilamos.
         Y_flat = Y.reshape(B * N, d, p_out)  # (B*N, d, p_out)
-        U_proj_flat = self.manifold.projection(Y_flat)  # (B*N, d, p_out)
+
+        Y_cpu = Y_flat.detach().cpu()
+
+        # proyección sobre CPU
+        U_out_cpu = self.manifold.projection(Y_cpu)
+
+        # volvemos a gpu si es necesario
+        U_proj_flat = U_out_cpu.to(Y_flat.device)
+
+
+        # U_proj_flat = self.manifold.projection(Y_flat)  # (B*N, d, p_out)
         U_out = U_proj_flat.reshape(B, N, d, p_out)
 
         return U_out
@@ -88,7 +98,15 @@ class GrassmannNodeMeanPool(nn.Module):
         """
         B, N, d, p = U.shape
         U_mean = U.mean(dim=1)  # (B, d, p)
-        U_proj = self.manifold.projection(U_mean)
+        U_cpu = U_mean.detach().cpu()
+
+        # proyección sobre CPU
+        U_out_cpu = self.manifold.projection(U_cpu)
+
+        # volvemos a gpu si es necesario
+        U_proj = U_out_cpu.to(U_mean.device)
+
+        # U_proj = self.manifold.projection(U_mean)
         return U_proj  # (B, d, p)
 
 
