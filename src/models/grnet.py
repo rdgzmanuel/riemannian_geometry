@@ -88,12 +88,12 @@ class GrassmannNetGeomstats(nn.Module):
         num_classes: int,
         fr_layers: list[int] | None = None,  # lista de p_out por capa
         hidden_dims: list[int] | None = None,
-        dropout: float = 0.5,
+        dropout: float = 0.3,
     ):
         super().__init__()
 
         if fr_layers is None:
-            fr_layers = [16, 8]  # ejemplo
+            fr_layers = [32, 64, 32]
 
         if hidden_dims is None:
             hidden_dims = [128, 64]
