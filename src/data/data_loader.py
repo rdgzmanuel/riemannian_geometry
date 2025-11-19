@@ -39,7 +39,7 @@ def graph_collate(batch):
     U_list = [item[0] for item in batch]
     A_list = [item[1] for item in batch]
     y_batch = torch.tensor([item[2] for item in batch], dtype=torch.long)
-    
+
     # tamaños base
     N_max = max(U.shape[0] for U in U_list)
     d = U_list[0].shape[1]
@@ -80,7 +80,8 @@ def get_dataloaders(
     seed: int = 42,
     train_ratio: float = 0.7,
     val_ratio: float = 0.15,
-    collate_fn = geom_collate):
+    collate_fn = geom_collate
+):
 
     set_seed(seed)
 
