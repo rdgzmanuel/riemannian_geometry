@@ -37,21 +37,22 @@ def window_to_spd(win: np.ndarray, eps: float = 1e-6) -> np.ndarray:
 def build_spd_for_file(
     npz_path: Path,
     eps: float = 1e-6,
-) -> tuple[np.ndarray, str]:
+) -> tuple[np.ndarray, int]:
     """
     Carga un npz de ventanas y devuelve:
       - spds: (Nw, d, d)
-      - label: str
+      - label: int
     """
     data = np.load(npz_path, allow_pickle=True)
-    windows = data["windows"]  # (Nw, T, d)
-    label = str(data["label"])
+
+    windows = data["windows"]   # (Nw, T, d)
+    label = int(data["label"])
 
     Nw, T, d = windows.shape
     spds = np.zeros((Nw, d, d), dtype=np.float32)
 
     for i in range(Nw):
-        spds[i] = window_to_spd(windows[i], eps=eps)
+        spds[i] = covariance_from_window(windows[i], eps=eps)
 
     return spds, label
 
@@ -75,11 +76,11 @@ def build_all_spd(
     npz_files = sorted(src_dir.glob("*.npz"))
 
     for npz_path in npz_files:
-        print(f"SPD repr {npz_path.name}")
+        # print(f"SPD repr {npz_path.name}")
         spds, label = build_spd_for_file(npz_path, eps=eps)
 
         if spds.shape[0] == 0:
-            print("  No windows, skipping")
+            print(f"[SKIP]{npz_path.name}: no windows.")
             continue
 
         data = np.load(npz_path, allow_pickle=True)
@@ -93,4 +94,8 @@ def build_all_spd(
             file_id=file_id,
         )
 
-        print(f" Saved {out_path}")
+        # print(f" Saved {out_path}")
+
+
+if __name__ == "__main__":
+    build_all_spd()

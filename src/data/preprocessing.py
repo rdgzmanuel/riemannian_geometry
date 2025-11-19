@@ -77,12 +77,12 @@ def preprocess_all(
 
     dst_dir.mkdir(parents=True, exist_ok=True)
 
-    per_file, common_markers = compute_common_markers()
+    per_file, common_markers = compute_common_markers(files)
     joint_mapping = build_identity_joint_mapping(common_markers)
 
     # for path in files:
     for path, markers, names in per_file:
-        print(f"Preprocessing {path.name}")
+        # print(f"Preprocessing {path.name}")
         markers, marker_names = load_c3d_markers(path)
         seq = load_sequence(markers, marker_names, joint_mapping)
         try:
@@ -98,7 +98,7 @@ def preprocess_all(
             joint_names=np.array(clean["joint_names"]),
             # fps=clean["fps"],
         )
-        print(f"Saved {out_path}")
+        # print(f"Saved {out_path}")
 
 
 if __name__ == "__main__":
