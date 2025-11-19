@@ -20,7 +20,7 @@ def parse_args():
     parser.add_argument("--epochs", type=int, default=40)
     parser.add_argument("--lr", type=float, default=1e-3)
     parser.add_argument("--seed", type=int, default=42)
-    parser.add_argument("--proj_dim", type=int, default=32)
+    parser.add_argument("--proj_dim", type=int, default=[70, 50, 30])
     parser.add_argument("--metric", type=str, default="log-euclidean",
                         choices=["log-euclidean", "affine"])
     parser.add_argument("--checkpoint", type=str,
@@ -131,7 +131,6 @@ def main():
         ds,
         batch_size=batch_size,
         seed=seed,
-        collate_fn=geom_collate,
     )
 
     # Para averiguar T y d, cogemos una muestra
