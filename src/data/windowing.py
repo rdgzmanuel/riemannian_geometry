@@ -128,7 +128,7 @@ def build_all_windows(
     action2idx = {}
     count_skiped = 0
     for npz_path in npz_files:
-        print(f"Windowing {npz_path.name}")
+        # print(f"Windowing {npz_path.name}")
         windows, label_str = build_windows_for_file(
             npz_path, window_size=window_size, stride=stride
         )
@@ -158,12 +158,12 @@ def build_all_windows(
             label=label,
             file_id=npz_path.stem,
         )
-        print(f"Saved {out_path}")
+        # print(f"Saved {out_path}")
 
     with open("./action2idx.json", "w") as f:
         json.dump(action2idx, f, indent=4)
 
-    print("skipeadas:", count_skiped)
+    # print("skipeadas:", count_skiped)
 
 
 if __name__ == "__main__":

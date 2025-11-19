@@ -46,28 +46,28 @@ def main():
     # ----------------------------------------------------------
     # 1. Preprocesado: raw → interim
     # ----------------------------------------------------------
-    print("\n [1/3] Preprocesando esqueletos (raw → interim)...")
+    print("\n [1/4] Preprocesando esqueletos (raw → interim)...")
     preprocess_all(src_dir=HDM05_CUTS_C3D_DIR, dst_dir=INTERIM_DIR)
     print(" Preprocesado completado.")
 
     # ----------------------------------------------------------
     # 2. Ventanas: interim → windows
     # ----------------------------------------------------------
-    print("\n [2/3] Generando ventanas (interim → windows)...")
+    print("\n [2/4] Generando ventanas (interim → windows)...")
     build_all_windows(src_dir=INTERIM_DIR, dst_dir=HDM05_WINDOWS_DIR)
     print(" Ventanas generadas.")
 
     # ----------------------------------------------------------
     # 3. Grassmann: windows → grassmann
     # ----------------------------------------------------------
-    print("\n [3/3] Generando representación Grassmann...")
-    build_all_grassmann(src_dir=HDM05_WINDOWS_DIR, dst_dir=HDM05_GRASSMANN_DIR)
-    print(" Representaciones Grassmann generadas.")
+    # print("\n [3/4] Generando representación Grassmann...")
+    # build_all_grassmann(src_dir=HDM05_WINDOWS_DIR, dst_dir=HDM05_GRASSMANN_DIR)
+    # print(" Representaciones Grassmann generadas.")
 
     # ----------------------------------------------------------
     # 4. SPD: windows → SPD
     # ----------------------------------------------------------
-    print("=== Generando SPD ===")
+    print("\n [4/4] Generando representación SPD...")
     build_all_spd(src_dir=HDM05_WINDOWS_DIR, dst_dir=HDM05_SPD_DIR)
     print(" Representaciones SPD generadas.")
 
