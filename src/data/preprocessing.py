@@ -82,7 +82,7 @@ def preprocess_all(
 
     # for path in files:
     for path, markers, names in per_file:
-        print(f"Preprocessing {path.name}")
+        # print(f"Preprocessing {path.name}")
         markers, marker_names = load_c3d_markers(path)
         seq = load_sequence(markers, marker_names, joint_mapping)
         try:
@@ -98,7 +98,7 @@ def preprocess_all(
             joint_names=np.array(clean["joint_names"]),
             # fps=clean["fps"],
         )
-        print(f"Saved {out_path}")
+        # print(f"Saved {out_path}")
 
 
 if __name__ == "__main__":
