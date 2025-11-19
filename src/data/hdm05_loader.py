@@ -34,13 +34,12 @@ def load_c3d_markers(path: Path) -> tuple[np.ndarray, list[str]]:
     return xyz.astype(np.float32), labels
 
 
-def compute_common_markers():
+def compute_common_markers(files):
     """
     Escanea TODOS los C3D y devuelve:
         - sorted list de marcadores presentes en TODOS los ficheros
         - también imprime cuáles archivos tienen marcadores extra o missing
     """
-    files = list_c3d_files(use_cuts=True, pattern="*.C3D")
     per_file = []   # [(path, markers, names), ...]
 
     marker_sets = []
@@ -162,7 +161,7 @@ def load_sequence(
 if __name__ == "__main__":
     files = list_c3d_files(use_cuts=True, pattern="*.C3D")
 
-    per_file, common_markers = compute_common_markers()
+    per_file, common_markers = compute_common_markers(files)
     joint_mapping = build_identity_joint_mapping(common_markers)
 
     print(joint_mapping)

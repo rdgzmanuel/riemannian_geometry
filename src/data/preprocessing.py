@@ -77,7 +77,7 @@ def preprocess_all(
 
     dst_dir.mkdir(parents=True, exist_ok=True)
 
-    per_file, common_markers = compute_common_markers()
+    per_file, common_markers = compute_common_markers(files)
     joint_mapping = build_identity_joint_mapping(common_markers)
 
     # for path in files:
