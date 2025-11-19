@@ -8,6 +8,8 @@ PROCESSED_DIR = DATA_DIR / "processed"
 
 HDM05_WINDOWS_DIR = PROCESSED_DIR / "hdm05_windows"
 HDM05_GRASSMANN_DIR = PROCESSED_DIR / "hdm05_grassmann"
+HDM05_SPD_DIR = PROCESSED_DIR / "hdm05_spd"
+
 
 # Donde están los .c3d crudos
 HDM05_FULL_C3D_DIR = RAW_DIR / "full_takes"

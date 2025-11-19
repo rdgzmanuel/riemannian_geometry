@@ -5,12 +5,14 @@ from pathlib import Path
 
 import numpy as np
 
-# DATA_DIR = Path("data")
-# RAW_DIR = DATA_DIR / "HDM05"
-# INTERIM_DIR = DATA_DIR / "interim" / "hdm05_cleaned"
-# HDM05_CUTS_C3D_DIR = RAW_DIR / "cuts"
 from ..config.paths import HDM05_CUTS_C3D_DIR, INTERIM_DIR
-from .hdm05_loader import list_c3d_files, load_sequence
+from .hdm05_loader import (
+    list_c3d_files,
+    load_c3d_markers,
+    load_sequence,
+    build_identity_joint_mapping,
+    compute_common_markers,
+)
 
 
 def center_skeleton(skel: np.ndarray, root_joint: int = 0) -> np.ndarray:
@@ -75,9 +77,14 @@ def preprocess_all(
 
     dst_dir.mkdir(parents=True, exist_ok=True)
 
-    for path in files:
-        print(f"Preprocessing {path.name}")
-        seq = load_sequence(path)
+    per_file, common_markers = compute_common_markers(files)
+    joint_mapping = build_identity_joint_mapping(common_markers)
+
+    # for path in files:
+    for path, markers, names in per_file:
+        # print(f"Preprocessing {path.name}")
+        markers, marker_names = load_c3d_markers(path)
+        seq = load_sequence(markers, marker_names, joint_mapping)
         try:
             clean = preprocess_sequence(seq, root_joint=root_joint)
         except ValueError as e:
@@ -91,4 +98,8 @@ def preprocess_all(
             joint_names=np.array(clean["joint_names"]),
             # fps=clean["fps"],
         )
-        print(f"Saved {out_path}")
+        # print(f"Saved {out_path}")
+
+
+if __name__ == "__main__":
+    preprocess_all()

@@ -6,6 +6,9 @@ runs/
 # …pero permitir src/data/
 !src/data/
 
+# action2indx
+action2idx.json
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]

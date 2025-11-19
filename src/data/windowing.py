@@ -4,15 +4,12 @@ from __future__ import annotations
 from pathlib import Path
 
 import numpy as np
+import json
 
-# DATA_DIR = Path("data")
-# RAW_DIR = DATA_DIR / "HDM05"
-# INTERIM_DIR = DATA_DIR / "interim" / "hdm05_cleaned"
-# PROCESSED_DIR = DATA_DIR / "processed"
-# HDM05_WINDOWS_DIR = PROCESSED_DIR / "hdm05_windows"
 from ..config.paths import HDM05_WINDOWS_DIR, INTERIM_DIR
 
 import re
+
 
 def extract_clean_label(npz_path: Path) -> str:
     """
@@ -23,7 +20,6 @@ def extract_clean_label(npz_path: Path) -> str:
       - Elimina números finales
       - Mantiene números internos del nombre
     """
-
     stem = npz_path.stem                     # HDM_bd_cartwheelLHandStart1Reps_003_120
     parts = stem.split("_")
     raw = parts[2]                           # "cartwheelLHandStart1Reps"
@@ -66,7 +62,7 @@ def sliding_windows(
         min_frames = window_size
 
     if min_frames > T:
-        return []
+        return None
 
     windows = []
     for start in range(0, T - window_size + 1, stride):
@@ -86,15 +82,22 @@ def build_windows_for_file(
       - windows: (Nw, T, d)
       - label: string con la clase (de momento, parseamos del nombre)
     """
+
     data = np.load(npz_path, allow_pickle=True)
     skel = data["skeleton"]  # (T, J, 3)
+
+    assert skel.shape[1] == 31, f"ERROR: se esperaban 31 joints y hay {skel.shape[1]}"
+
     flat = skeleton_to_flat(skel)  # (T, d)
 
-    wins = sliding_windows(flat, window_size=window_size, stride=stride)
-    if not wins:
-        return np.empty((0, window_size, flat.shape[1]), dtype=np.float32), ""
+    T, d = flat.shape
+    assert d == 93, f"ERROR: después de flatten, d={d} y no 93"
 
-    windows = np.stack(wins).astype(np.float32)
+    wins = sliding_windows(flat, window_size=window_size, stride=stride)
+    if wins:
+        windows = np.stack(wins).astype(np.float32)
+    else:
+        windows = None
 
     # Ejemplo: nombre tipo "cartwheel_r01.npz" → clase "cartwheel"
     # label = npz_path.stem.split("_")[0]
@@ -106,7 +109,7 @@ def build_windows_for_file(
 def build_all_windows(
     src_dir: Path = INTERIM_DIR,
     dst_dir: Path = HDM05_WINDOWS_DIR,
-    window_size: int = 32,
+    window_size: int = 32,  # 0.25 segundos
     stride: int = 16,
 ):
     """
@@ -122,11 +125,28 @@ def build_all_windows(
 
     npz_files = sorted(src_dir.glob("*.npz"))
 
+    action2idx = {}
+    count_skiped = 0
     for npz_path in npz_files:
-        print(f"Windowing {npz_path.name}")
-        windows, label = build_windows_for_file(
+        # print(f"Windowing {npz_path.name}")
+        windows, label_str = build_windows_for_file(
             npz_path, window_size=window_size, stride=stride
         )
+
+        # Skip sequences that produced no windows
+        if windows is None:
+            print(f"[SKIP] {npz_path.name}: demasiado corta para {window_size}-frame windows")
+            count_skiped += 1
+            continue
+
+        if label_str not in action2idx:
+            action2idx[label_str] = len(action2idx)
+
+        label = action2idx[label_str]
+
+        if windows.shape[-1] != 93:
+            raise ValueError(f"{npz_path.name} produced d={windows.shape[-1]}, expected 93")
+
         if windows.shape[0] == 0:
             print("  No windows, skipping")
             continue
@@ -138,4 +158,13 @@ def build_all_windows(
             label=label,
             file_id=npz_path.stem,
         )
-        print(f"Saved {out_path}")
+        # print(f"Saved {out_path}")
+
+    with open("./action2idx.json", "w") as f:
+        json.dump(action2idx, f, indent=4)
+
+    # print("skipeadas:", count_skiped)
+
+
+if __name__ == "__main__":
+    build_all_windows()
