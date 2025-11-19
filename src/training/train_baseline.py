@@ -279,6 +279,7 @@ def main():
             save_checkpoint(args.checkpoint, model, optimizer, epoch, best_val_acc)
 
     print(f"Entrenamiento finalizado. Mejor val_acc={best_val_acc * 100:.2f}%")
+    save_checkpoint("experiments/checkpoints/baseline/mlp_latest.pt", model, optimizer, epoch, val_acc)
 
     # Evaluar el mejor modelo guardado
     eval_epoch(args.checkpoint, model, test_loader, device)
