@@ -43,18 +43,20 @@ class FRMapGeomstats(nn.Module):
         if self.bias is not None:
             Y = Y + self.bias  # broadcast (1,1,p_out)
 
-        # Proyección al manifold Stiefel(d, p_out)
-        # Geomstats usa el backend torch, así que esto es differentiable.
-        # U_out = self.manifold.projection(Y)  # (B, d, p_out)
+        # Mapa lineal en el subespacio
+        Y = U @ self.weight  # (B, d, p_out)
+        if self.bias is not None:
+            Y = Y + self.bias  # broadcast (1,1,p_out)
 
-        # geomstats necesita CPU
-        Y_cpu = Y.detach().cpu()
+        # (Opcional) puedes estabilizar un poco acotando valores extremos:
+        # Y = torch.clamp(Y, min=-1e3, max=1e3)
 
-        # proyección sobre CPU
-        U_out_cpu = self.manifold.projection(Y_cpu)
+        # Proyección al manifold Stiefel(d, p_out) mediante QR batched
+        # torch.linalg.qr soporta tensores batched: (B, d, p_out) → Q: (B, d, p_out)
+        Q, _ = torch.linalg.qr(Y, mode="reduced")
 
-        # volvemos a gpu si es necesario
-        U_out = U_out_cpu.to(Y.device)
+        # Q tiene columnas ortonormales → base de subespacio en Stiefel/Grassmann
+        U_out = Q  # (B, d, p_out)
 
         return U_out
 
