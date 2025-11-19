@@ -6,62 +6,64 @@ import torch.nn as nn
 from src.manifolds.spd_ops import re_eig, log_map_spd
 
 
-# -------------------------------------------------
-# 1. Capa BiMap:  X -> W^T X W
-# -------------------------------------------------
-class BiMap(nn.Module):
+class BiReBlock(nn.Module): 
     """
-    BiMap layer:
-      X ∈ R^{B×d_in×d_in}  →  Y ∈ R^{B×d_out×d_out}
-      Y_b = W^T X_b W
-    """
-
-    def __init__(self, d_in: int, d_out: int):
+    BiMap layer: 
+    X ∈ R^{B×d_in×d_in} → Y ∈ R^{B×d_out×d_out} 
+    Y_b = W X_b W^T
+    """ 
+    def __init__(
+        self,
+        d_in: int,
+        d_out: int,
+        eps: float = 1e-4,
+    ):
         super().__init__()
         self.d_in = d_in
         self.d_out = d_out
-
-        # Inicialización pequeña para no salirnos mucho de la identidad
-        self.W = nn.Parameter(torch.randn(d_in, d_out) * 0.1)
-
-    def forward(self, X: torch.Tensor) -> torch.Tensor:
-        """
-        X: (B, d_in, d_in)
-        return: (B, d_out, d_out)
-        """
-        # XW: (B, d_in, d_out)
-        W = self.W / (torch.norm(self.W, dim=0, keepdim=True) + 1e-8)
-        XW = torch.einsum("bij,jk->bik", X, W)
-        # XW = torch.einsum("bij,jk->bik", X, self.W)
-        # W^T (XW): (B, d_out, d_out)
-        Y = torch.einsum("ij,bjk->bik", W.transpose(0, 1), XW)
-        # Y = torch.einsum("ij,bjk->bik", self.W.transpose(0, 1), XW)
-        return Y
-
-
-# -------------------------------------------------
-# 2. Capa ReEig (clamp de autovalores)
-# -------------------------------------------------
-class ReEig(nn.Module):
-    """
-    ReEig:
-      Proyecta de nuevo a SPD clampando autovalores a eps.
-    """
-
-    def __init__(self, eps: float = 1e-4):
-        super().__init__()
         self.eps = eps
+        self.W = nn.Parameter(torch.randn(d_out, d_in))
+        self.reset_parameters()
 
-    def forward(self, X: torch.Tensor) -> torch.Tensor:
+    def reset_parameters(self):
+        # Inicialización semi-ortogonal (filas ortonormales)
+        with torch.no_grad():
+            # QR sobre Wᵀ: (d_in, d_out) -> q: (d_in, d_out)
+            q, _ = torch.linalg.qr(self.W.t())  # columnas ortonormales en q
+            self.W.copy_(q.t())                 # filas ortonormales en W
+
+    def forward(
+        self,
+        X: torch.Tensor
+    ) -> torch.Tensor:
         """
-        X: (B, d, d) simétrica (aprox.)
+        X: (B, d_in, d_in) return: (B, d_out, d_out)
         """
-        return re_eig(X, eps=self.eps)
+        # (paper huang andd gool)
+        # -------------------------------------------------
+        # 1. Capa BiMap: X -> W X W^T
+        # -------------------------------------------------
+        # Proyección a Stiefel en cada forward (aprox Riemanniano)
+        W = self.W
+        q, _ = torch.linalg.qr(W.t())    # (d_in, d_out)
+        W_st = q.t()                     # (d_out, d_in)
+
+        # WX: (B, d_in, d_out)
+        WX = torch.matmul(W_st, X)
+
+        # Y = WWXᵀ: (B, d_out, d_out)
+        Y = torch.matmul(WX, W.t())
+
+        if not torch.isfinite(Y).all():
+            print("NaN in BiMap")
+            raise SystemExit
+
+        # -------------------------------------------------
+        # 2. Capa ReEig (clamp de autovalores)
+        # -------------------------------------------------
+        return re_eig(Y, eps=self.eps)
 
 
-# -------------------------------------------------
-# 3. Modelo SPDNet puro PyTorch (sin geomstats)
-# -------------------------------------------------
 class SPDNet(nn.Module):
     """
     SPDNet con logaritmo matricial vía eigen-descomposición (PyTorch puro).
@@ -70,8 +72,9 @@ class SPDNet(nn.Module):
       X SPD (d_in×d_in)
         -> BiMap(d_in -> proj_dim)
         -> ReEig
-        -> Log (log_eig, métrica "log-euclidean"/"affine")
-        -> BiMap(proj_dim -> proj_dim)
+        -> BiMap(d_in -> proj_dim)
+        -> ReEig
+        -> BiMap(d_in -> proj_dim)
         -> ReEig
         -> Log
         -> Flatten
@@ -81,8 +84,8 @@ class SPDNet(nn.Module):
     def __init__(
         self,
         d_in: int,
-        proj_dim: int = 32,
-        num_classes: int = 130,
+        proj_dim: int = [70, 50, 30],
+        num_classes: int = 70,
         metric: str = "log-euclidean",
     ):
         super().__init__()
@@ -91,35 +94,24 @@ class SPDNet(nn.Module):
         self.num_classes = num_classes
         self.metric = metric
 
-        # Bloque 1
-        self.bimap1 = BiMap(d_in, proj_dim)
-        self.reig1 = ReEig()
-
-        # Bloque 2
-        self.bimap2 = BiMap(proj_dim, proj_dim)
-        self.reig2 = ReEig()
-
+        # layers
+        self.birelayer1 = BiReBlock(d_in, proj_dim[0])
+        self.birelayer2 = BiReBlock(proj_dim[0], proj_dim[1])
+        self.birelayer3 = BiReBlock(proj_dim[1], proj_dim[2])
         # Clasificador Euclídeo
-        self.fc = nn.Linear(proj_dim * proj_dim, num_classes)
+        d = proj_dim[-1]
+        self.fc = nn.Linear(d * d, num_classes)
 
     def forward(self, X: torch.Tensor) -> torch.Tensor:
         """
         X: (B, d_in, d_in) SPD
         """
-        # Bloque 1
-        X = self.bimap1(X)           # (B, proj_dim, proj_dim)
-        if not torch.isfinite(X).all():
-            print("NaN in BiMap1"); raise SystemExit
-        X = self.reig1(X)            # asegurar SPD
-        if not torch.isfinite(X).all():
-            print("NaN/Inf after block 1"); raise SystemExit
-        X = log_map_spd(X, metric=self.metric)  # (B, proj_dim, proj_dim)
 
-        # Bloque 2
-        X = self.bimap2(X)
-        X = self.reig2(X)
-        if not torch.isfinite(X).all():
-            print("NaN/Inf after block 1"); raise SystemExit
+        # 3 bloques de BiRe (BiMap y Re)
+        X = self.birelayer1(X)
+        X = self.birelayer2(X)
+        X = self.birelayer3(X)
+
         X = log_map_spd(X, metric=self.metric)
 
         # Flatten + clasificación
