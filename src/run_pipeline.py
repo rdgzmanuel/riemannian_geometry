@@ -16,10 +16,12 @@ Usa directamente las funciones internas del paquete hdm05_grassmann.
 from src.config.paths import (
     HDM05_CUTS_C3D_DIR,
     HDM05_GRASSMANN_DIR,
+    HDM05_SPD_DIR,
     HDM05_WINDOWS_DIR,
     INTERIM_DIR,
 )
 from src.data.grassman_repr import build_all_grassmann
+from src.data.spd_repr import build_all_spd
 from src.data.hdm05_loader import list_c3d_files
 from src.data.preprocessing import preprocess_all
 from src.data.windowing import build_all_windows
@@ -63,6 +65,13 @@ def main():
     print(" Representaciones Grassmann generadas.")
 
     # ----------------------------------------------------------
+    # 4. SPD: windows → SPD
+    # ----------------------------------------------------------
+    print("=== Generando SPD ===")
+    build_all_spd(src_dir=HDM05_WINDOWS_DIR, dst_dir=HDM05_SPD_DIR)
+    print(" Representaciones SPD generadas.")
+
+    # ----------------------------------------------------------
     # FIN
     # ----------------------------------------------------------
     print("\n PIPELINE COMPLETADA CON ÉXITO")
@@ -70,6 +79,7 @@ def main():
     print(f"  - Secuencias limpias: {INTERIM_DIR}")
     print(f"  - Ventanas:           {HDM05_WINDOWS_DIR}")
     print(f"  - Grassmann:          {HDM05_GRASSMANN_DIR}")
+    print(f"  - SPD:                {HDM05_SPD_DIR}")
     print(" Listo para entrenar GRNet o baselines.")
 
 
