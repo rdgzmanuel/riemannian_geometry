@@ -5,14 +5,10 @@ from pathlib import Path
 
 import numpy as np
 
-# DATA_DIR = Path("data")
-# RAW_DIR = DATA_DIR / "HDM05"
-# INTERIM_DIR = DATA_DIR / "interim" / "hdm05_cleaned"
-# PROCESSED_DIR = DATA_DIR / "processed"
-# HDM05_WINDOWS_DIR = PROCESSED_DIR / "hdm05_windows"
 from ..config.paths import HDM05_WINDOWS_DIR, INTERIM_DIR
 
 import re
+
 
 def extract_clean_label(npz_path: Path) -> str:
     """
@@ -86,9 +82,16 @@ def build_windows_for_file(
       - windows: (Nw, T, d)
       - label: string con la clase (de momento, parseamos del nombre)
     """
+
     data = np.load(npz_path, allow_pickle=True)
     skel = data["skeleton"]  # (T, J, 3)
+
+    assert skel.shape[1] == 31, f"ERROR: se esperaban 31 joints y hay {skel.shape[1]}"
+
     flat = skeleton_to_flat(skel)  # (T, d)
+
+    T, d = flat.shape
+    assert d == 93, f"ERROR: después de flatten, d={d} y no 93"
 
     wins = sliding_windows(flat, window_size=window_size, stride=stride)
     if not wins:
@@ -106,7 +109,7 @@ def build_windows_for_file(
 def build_all_windows(
     src_dir: Path = INTERIM_DIR,
     dst_dir: Path = HDM05_WINDOWS_DIR,
-    window_size: int = 32,
+    window_size: int = 32, # 0.25 segundos
     stride: int = 16,
 ):
     """
@@ -127,6 +130,10 @@ def build_all_windows(
         windows, label = build_windows_for_file(
             npz_path, window_size=window_size, stride=stride
         )
+
+        if windows.shape[-1] != 93:
+            raise ValueError(f"{npz_path.name} produced d={windows.shape[-1]}, expected 93")
+
         if windows.shape[0] == 0:
             print("  No windows, skipping")
             continue
@@ -139,3 +146,7 @@ def build_all_windows(
             file_id=npz_path.stem,
         )
         print(f"Saved {out_path}")
+
+
+if __name__ == "__main__":
+    build_all_windows()
