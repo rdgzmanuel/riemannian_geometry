@@ -13,7 +13,7 @@ from torch.utils.data import DataLoader, random_split
 from torchvision.transforms import ToTensor, Compose
 from .eval import evaluate_epoch
 from .losses import get_classification_loss
-from .utils import get_device, save_checkpoint, set_seed
+from .utils import get_device, save_checkpoint, set_seed, load_resume_checkpoint
 
 
 def parse_args():
@@ -161,56 +161,6 @@ def eval_epoch(
     print(f"test_acc={test_acc*100:.2f}%")
 
     return test_acc
-
-
-def load_resume_checkpoint(
-    checkpoint_path: str,
-    model: torch.nn.Module,
-    optimizer: torch.optim.Optimizer,
-    device: torch.device,
-) -> tuple[torch.nn.Module, torch.optim.Optimizer, int, float]:
-    """
-    Load a training checkpoint and restore model weights, optimizer state,
-    and metadata required to resume training.
-
-    Parameters
-    ----------
-    checkpoint_path : str
-        Path to the checkpoint file to load.
-    model : nn.Module
-        Model instance where the checkpoint weights will be loaded.
-    optimizer : optim.Optimizer
-        Optimizer whose state will be restored from the checkpoint.
-    device : torch.device
-        Device where the model and optimizer should be loaded.
-
-    Returns
-    -------
-    model : nn.Module
-        The model with restored weights.
-    optimizer : optim.Optimizer
-        The optimizer with restored internal state (e.g., momentum).
-    start_epoch : int
-        The next epoch number to continue training from.
-        (checkpoint epoch + 1)
-    best_val_acc : float
-        The best validation accuracy stored inside the checkpoint.
-
-    """
-
-    print(f"Loading checkpoint to resume training: {checkpoint_path}")
-
-    ckpt = torch.load(checkpoint_path, map_location=device)
-
-    model.load_state_dict(ckpt["model_state"])
-    optimizer.load_state_dict(ckpt["optimizer_state"])
-
-    start_epoch: int = ckpt.get("epoch", 0) + 1
-    best_val_acc: float = ckpt.get("best_val_acc", 0.0)
-
-    model.to(device)
-
-    return model, optimizer, start_epoch, best_val_acc
 
 
 def main():

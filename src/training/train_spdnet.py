@@ -5,11 +5,12 @@ import argparse
 import torch
 import torch.nn as nn
 from tqdm import tqdm
+import os
 
 from src.data.datasets import HDM05SPDDataset
 from src.data.data_loader import get_dataloaders
 from src.models.spdnet import BiMapLayer, SPDNet, StiefelSGD
-from src.training.utils import get_device, save_checkpoint, set_seed
+from src.training.utils import get_device, save_checkpoint, set_seed, load_resume_checkpoint
 
 
 def parse_args():
@@ -24,6 +25,11 @@ def parse_args():
                         default=[70, 50, 30])
     parser.add_argument("--checkpoint", type=str,
                         default="experiments/checkpoints/spd/spdnet_geom.pt")
+    parser.add_argument(
+        "--resume",
+        action="store_true",
+        help="Reanuda el entrenamiento desde un checkpoint si existe",
+    )
     return parser.parse_args()
 
 
@@ -35,6 +41,17 @@ def train_step(
     device: torch.device,
     lr: float,
 ):
+    """
+    Train one training epoch for the model
+    Args:
+    - model (nn.Module): model
+    - dataloader (Dataloader): train dataloader
+    - optimizer (torch.optim)
+    - criterion (torch.nn.CrossEntropyLoss)
+    - device (torch.device)
+    Returns:
+    - (float): average loss of the epoch, average accuracy
+    """
     model.train()
     total_loss = 0.0
     correct = 0
@@ -68,6 +85,17 @@ def val_step(
     criterion: nn.Module,
     device: torch.device,
 ):
+    """
+    Perform one validation epoch
+    Args:
+    - model (nn.Module): model
+    - dataloader (Dataloader): validation dataloader
+    - criterion (torch.nn.CrossEntropyLoss)
+    - device (torch.device)
+    Returns:
+    - tuple with average_loss, accuracy
+
+    """
     model.eval()
     total_loss = 0.0
     correct = 0
@@ -96,6 +124,16 @@ def test_step(
     loader: torch.utils.data.DataLoader,
     device: torch.device,
 ):
+    """
+    Perform one evaluation epoch of the best model
+    Args:
+    - model (MLPBaseline): model
+    - loader (Dataloader): test dataloader
+    - device (torch.device)
+    Returns:
+    - Test accuracy (float)
+
+    """
     model.eval()
     correct = 0
     total = 0
@@ -160,14 +198,25 @@ def main():
     # Create optimizer
     optimizer = StiefelSGD(model.parameters(), lr=args.lr)
     criterion = nn.CrossEntropyLoss()
+    
 
-    # ----------------------------------------------------------
-    # Training loop
-    # ----------------------------------------------------------
-    # best_val_acc = 0.0
-    # best_state = None
+    best_val_acc: float = 0.0
 
-    for epoch in tqdm(range(1, args.epochs + 1), desc="Training"):
+    start_epoch = 1
+    best_val_acc = 0.0
+
+    if args.resume and os.path.exists(args.checkpoint):
+        model, optimizer, start_epoch, best_val_acc = load_resume_checkpoint(
+            args.checkpoint, model, optimizer, device
+        )
+        print(
+            f"Entrenamiento reanudado desde epoch {start_epoch}, "
+            f"mejor val_acc previa={best_val_acc*100:.2f}%"
+        )
+    else:
+        print("Entrenamiento desde cero.")
+
+    for epoch in tqdm(range(start_epoch, args.epochs + 1), desc="Training"):
         train_loss, train_acc = train_step(model, train_loader, optimizer, criterion, device, args.lr)
         val_loss, val_acc = val_step(model, val_loader, criterion, device)
 
@@ -182,10 +231,9 @@ def main():
             f"val: loss={val_loss:.4f} acc={val_acc*100:5.2f}%"
         )
 
-        # if val_acc > best_val_acc:
-        #     best_val_acc = val_acc
-        #     best_state = {k: v.cpu() for k, v in model.state_dict().items()}
-        #     save_checkpoint(args.checkpoint, model, optimizer, epoch, best_val_acc)
+        if val_acc > best_val_acc:
+            best_val_acc = val_acc
+            save_checkpoint(args.checkpoint, model, optimizer, epoch, best_val_acc)
 
     # Save model
     save_checkpoint(args.checkpoint, model, optimizer, epoch, val_acc)
