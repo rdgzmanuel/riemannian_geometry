@@ -7,8 +7,8 @@ import torch.nn as nn
 from tqdm import tqdm
 
 from src.data.datasets import HDM05SPDDataset
-from src.data.data_loader import get_dataloaders, geom_collate
-from src.models.spdnet import SPDNet
+from src.data.data_loader import get_dataloaders
+from src.models.spdnet import BiMapLayer, SPDNet, StiefelSGD
 from src.training.utils import get_device, save_checkpoint, set_seed
 
 
@@ -18,11 +18,10 @@ def parse_args():
     )
     parser.add_argument("--batch_size", type=int, default=32)
     parser.add_argument("--epochs", type=int, default=40)
-    parser.add_argument("--lr", type=float, default=1e-3)
+    parser.add_argument("--lr", type=float, default=5e-4)
     parser.add_argument("--seed", type=int, default=42)
-    parser.add_argument("--proj_dim", type=int, default=[70, 50, 30])
-    parser.add_argument("--metric", type=str, default="log-euclidean",
-                        choices=["log-euclidean", "affine"])
+    parser.add_argument("--proj_dim", nargs="+", type=int,
+                        default=[70, 50, 30])
     parser.add_argument("--checkpoint", type=str,
                         default="experiments/checkpoints/spd/spdnet_geom.pt")
     return parser.parse_args()
@@ -34,6 +33,7 @@ def train_step(
     optimizer: torch.optim.Optimizer,
     criterion: nn.Module,
     device: torch.device,
+    lr: float,
 ):
     model.train()
     total_loss = 0.0
@@ -47,6 +47,7 @@ def train_step(
         optimizer.zero_grad()
         logits = model(X)
         loss = criterion(logits, y)
+
         loss.backward()
         optimizer.step()
 
@@ -139,7 +140,7 @@ def main():
     num_classes = len(ds.label2idx)
 
     print(
-        f"SPDNetGeomstats: d_in={d_in}) input_dim=({d_in}×{d_in}), num_classes={num_classes}"
+        f"SPDNetGeomstats: d_in={d_in} input_dim=({d_in}×{d_in}), num_classes={num_classes}"
     )
 
     # ----------------------------------------------------------
@@ -149,11 +150,16 @@ def main():
         d_in=d_in,
         proj_dim=args.proj_dim,
         num_classes=num_classes,
-        metric=args.metric,
     ).to(device)
 
+    # Mark BiMap weights as being on Stiefel manifold
+    for module in model.modules():
+        if isinstance(module, BiMapLayer):
+            module.W._on_stiefel = True
+
+    # Create optimizer
+    optimizer = StiefelSGD(model.parameters(), lr=args.lr)
     criterion = nn.CrossEntropyLoss()
-    optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
 
     # ----------------------------------------------------------
     # Training loop
@@ -162,7 +168,7 @@ def main():
     # best_state = None
 
     for epoch in tqdm(range(1, args.epochs + 1), desc="Training"):
-        train_loss, train_acc = train_step(model, train_loader, optimizer, criterion, device)
+        train_loss, train_acc = train_step(model, train_loader, optimizer, criterion, device, args.lr)
         val_loss, val_acc = val_step(model, val_loader, criterion, device)
 
         # print(
