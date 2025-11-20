@@ -77,7 +77,7 @@ class HDM05WindowsDataset(Dataset):
 class HDM05SPDDataset(Dataset):
     def __init__(
         self,
-        root: Path = HDM05_WINDOWS_DIR,
+        root: Path = HDM05_SPD_DIR,
         mapping_json: str ="./action2idx.json",
         split_filter: Callable[[str], bool] | None = None,
         transform: Callable | None = None,
