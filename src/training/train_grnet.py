@@ -13,6 +13,7 @@ from torch.utils.data import DataLoader, random_split
 from .eval import evaluate_epoch
 from .losses import get_classification_loss
 from .utils import get_device, save_checkpoint, set_seed
+from ..config.paths import HDM05_GRASSMANN_DIR
 
 from torch.utils.tensorboard import SummaryWriter
 
@@ -48,7 +49,11 @@ def main():
     fr_layers = parse_int_list(args.fr_layers)
     hidden_dims = parse_int_list(args.hidden_dims)
 
-    ds = HDM05GrassmannDataset()
+    ds = HDM05GrassmannDataset(
+            root=HDM05_GRASSMANN_DIR,
+            max_nodes=30,
+            sampling="uniform"
+        )
     seed = args.seed
     batch_size = args.batch_size
 
@@ -124,7 +129,8 @@ def main():
 
         if val_acc > best_val_acc:
             best_val_acc = val_acc
-            save_checkpoint(args.checkpoint, model, optimizer, epoch, best_val_acc)
+            ckpt_name = f"checkpoints/grnet_acc_{best_val_acc:.4f}.pth"
+            save_checkpoint(ckpt_name, model, optimizer, epoch, best_val_acc)
 
         scheduler.step()
 

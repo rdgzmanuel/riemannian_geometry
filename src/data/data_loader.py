@@ -102,8 +102,8 @@ def get_dataloaders(
         shuffle=True,
         collate_fn=collate_fn,
         drop_last=False,
-        num_workers=4,     # prueba 2, 4, 8 según tu CPU
-        pin_memory=True,   # ayuda a copiar más rápido a la GPU
+        num_workers=4,
+        pin_memory=True,
     )
 
     val_loader = DataLoader(

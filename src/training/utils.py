@@ -32,16 +32,33 @@ class Checkpoint:
     best_val_acc: float
 
 
-def save_checkpoint(path: str, model, optimizer, epoch: int, best_val_acc: float):
-    ckpt = Checkpoint(
-        epoch=epoch,
-        model_state=model.state_dict(),
-        optimizer_state=optimizer.state_dict(),
-        best_val_acc=best_val_acc,
-    )
+def save_checkpoint(
+    path: str,
+    model,
+    optimizer,
+    epoch: int,
+    best_val_acc: float,
+):
+    """
+    Guarda un checkpoint incluyendo:
+      - epoch
+      - estado del modelo
+      - estado del optimizer
+      - mejor accuracy de validación
+      - nombre de la red (nuevo)
+    """
+
+    ckpt = {
+        "epoch": epoch,
+        "model_state": model.state_dict(),
+        "optimizer_state": optimizer.state_dict(),
+        "best_val_acc": best_val_acc,
+        "checkpoint_acc": best_val_acc,
+    }
+
     os.makedirs(os.path.dirname(path), exist_ok=True)
-    torch.save(ckpt.__dict__, path)
-    print(f"Checkpoint guardado en {path}")
+    torch.save(ckpt, path)
+    print(f"Checkpoint guardado en {path} | acc={best_val_acc:.4f})")
 
 
 def load_checkpoint(path: str, model, optimizer=None):
