@@ -127,7 +127,7 @@ def test_step(
     """
     Perform one evaluation epoch of the best model
     Args:
-    - model (MLPBaseline): model
+    - model (nn.Module): model
     - loader (Dataloader): test dataloader
     - device (torch.device)
     Returns:
