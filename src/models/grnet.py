@@ -28,12 +28,12 @@ class FRMapFunction(torch.autograd.Function):
         return Y
 
     @staticmethod
-    def backward(ctx, grad_Y: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
+    def backward(ctx, grad_output: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
         """
         Backward pass for FRMap layer.
 
         Args:
-            grad_Y: Gradient w.r.t. output (batch, d_out, q)
+            grad_output: Gradient w.r.t. output (batch, d_out, q)
 
         Returns:
             grad_X: Gradient w.r.t. input
@@ -41,14 +41,15 @@ class FRMapFunction(torch.autograd.Function):
         """
         X, W = ctx.saved_tensors
 
-        # Gradient w.r.t. X: W^T @ grad_Y
+        # Gradient w.r.t. X: W^T @ grad_output
         grad_X = torch.bmm(
-            W.unsqueeze(0).expand(grad_Y.shape[0], -1, -1).transpose(-2, -1), grad_Y
+            W.unsqueeze(0).expand(grad_output.shape[0], -1, -1).transpose(-2, -1),
+            grad_output,
         )
 
-        # Gradient w.r.t. W: sum over batch of grad_Y @ X^T
+        # Gradient w.r.t. W: sum over batch of grad_output @ X^T
         # This is the Euclidean gradient, will be projected to PSD manifold in optimizer
-        grad_W = torch.sum(torch.bmm(grad_Y, X.transpose(-2, -1)), dim=0)
+        grad_W = torch.sum(torch.bmm(grad_output, X.transpose(-2, -1)), dim=0)
 
         return grad_X, grad_W
 
@@ -166,12 +167,12 @@ class ProjPoolingFunction(torch.autograd.Function):
         return Y
 
     @staticmethod
-    def backward(ctx, grad_Y: torch.Tensor) -> tuple[torch.Tensor, None]:
+    def backward(ctx, grad_output: torch.Tensor) -> tuple[torch.Tensor, None]:
         """
         Backward pass through pooling.
 
         Args:
-            grad_Y: Gradient w.r.t. output
+            grad_output: Gradient w.r.t. output
 
         Returns:
             grad_X: Gradient w.r.t. input
@@ -179,12 +180,12 @@ class ProjPoolingFunction(torch.autograd.Function):
         """
         if ctx.n_type == "across":
             # Gradient is broadcast to all n inputs
-            grad_X = grad_Y.unsqueeze(1).expand(-1, ctx.n, -1, -1) / ctx.n
+            grad_X = grad_output.unsqueeze(1).expand(-1, ctx.n, -1, -1) / ctx.n
         else:
             # Spatial unpooling
-            batch = grad_Y.shape[0]
+            batch = grad_output.shape[0]
             grad_X = torch.nn.functional.interpolate(
-                grad_Y,
+                grad_output,
                 size=(ctx.original_size, ctx.original_size),
                 mode="bilinear",
                 align_corners=False,
@@ -522,7 +523,7 @@ class GrNet(nn.Module):
         """
         manifold_params = []
 
-        for block in self.projection_blocks:
+        for block in self.blocks:
             manifold_params.extend(block.frmap.weights)
 
         return manifold_params

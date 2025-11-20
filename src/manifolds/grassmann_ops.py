@@ -111,7 +111,7 @@ class GrassmannOps:
         denom = s_i - s_j
 
         # Avoid division by zero
-        mask = torch.abs(denom) > 1e-8
+        mask = torch.abs(denom) > 1e-6
         K = torch.zeros_like(denom)
         K[mask] = 1.0 / denom[mask]
 
