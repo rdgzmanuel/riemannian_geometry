@@ -141,9 +141,7 @@ def main():
     # ----------------------------------------------------------
     # Dataset
     # ----------------------------------------------------------
-    ds = HDM05GrassmannDataset(
-        root=HDM05_GRASSMANN_DIR, max_nodes=30, sampling="uniform"
-    )
+    ds = HDM05GrassmannDataset(root=HDM05_GRASSMANN_DIR)
 
     seed = args.seed
     batch_size = args.batch_size
@@ -164,7 +162,7 @@ def main():
     # ----------------------------------------------------------
     # Modelo + Optimizer
     # ----------------------------------------------------------
-    model = create_grnet(num_blocks=num_blocks, num_classes=num_classes)
+    model = create_grnet(num_blocks=num_blocks)
 
     criterion = get_classification_loss("ce")
     optimizer = create_grnet_optimizer(

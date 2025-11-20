@@ -67,17 +67,7 @@ class ReOrthFunction(torch.autograd.Function):
         Returns:
             Q: Orthonormal matrix (batch, d, q)
         """
-        batch_size = X.shape[0]
-        Q_list, R_list = [], []
-
-        for i in range(batch_size):
-            Q, R = GrassmannOps.qr_decomposition(X[i])
-            Q_list.append(Q)
-            R_list.append(R)
-
-        Q = torch.stack(Q_list, dim=0)
-        R = torch.stack(R_list, dim=0)
-
+        Q, R = GrassmannOps.qr_decomposition(X)
         ctx.save_for_backward(Q, R)
         return Q
 
@@ -94,16 +84,7 @@ class ReOrthFunction(torch.autograd.Function):
             grad_X: Gradient w.r.t. input X
         """
         Q, R = ctx.saved_tensors
-        batch_size = grad_Q.shape[0]
-
-        grad_X_list = []
-        for i in range(batch_size):
-            # Since we only care about Q in the forward pass, grad_R = 0
-            grad_R = torch.zeros_like(R[i])
-            grad_X = GrassmannOps.qr_backward_full(grad_Q[i], grad_R, Q[i], R[i])
-            grad_X_list.append(grad_X)
-
-        grad_X = torch.stack(grad_X_list, dim=0)
+        grad_X = GrassmannOps.qr_backward_reorth(grad_Q, Q, R)
         return grad_X
 
 
@@ -228,19 +209,8 @@ class OrthMapFunction(torch.autograd.Function):
         Returns:
             U: Top q eigenvectors (batch, d, q)
         """
-        batch_size = X.shape[0]
-        U_list, Sigma_list = [], []
-
-        for i in range(batch_size):
-            U, Sigma = GrassmannOps.eig_decomposition(X[i], top_k=q)
-            U_list.append(U)
-            Sigma_list.append(Sigma)
-
-        U = torch.stack(U_list, dim=0)
-        Sigma = torch.stack(Sigma_list, dim=0)
-
+        U, Sigma = GrassmannOps.eig_decomposition(X, top_k=q)
         ctx.save_for_backward(U, Sigma)
-        ctx.q = q
         return U
 
     @staticmethod
@@ -257,15 +227,7 @@ class OrthMapFunction(torch.autograd.Function):
             None: for q parameter
         """
         U, Sigma = ctx.saved_tensors
-        batch_size = grad_U.shape[0]
-
-        grad_X_list = []
-        for i in range(batch_size):
-            grad_Sigma = torch.zeros_like(Sigma[i])  # We only use U, not Sigma
-            grad_X = GrassmannOps.eig_backward(grad_U[i], grad_Sigma, U[i], Sigma[i])
-            grad_X_list.append(grad_X)
-
-        grad_X = torch.stack(grad_X_list, dim=0)
+        grad_X = GrassmannOps.eig_backward(grad_U, U, Sigma)
         return grad_X, None
 
 
@@ -479,66 +441,62 @@ class OutputBlock(nn.Module):
         return logits
 
 
-class GrNet(nn.Module):
+class GrNetBlock(nn.Module):
     """
-    Grassmann Network for learning on Grassmann manifolds.
-
-    Architecture:
-        - Multiple Projection Blocks (FRMap + ReOrth)
-        - Optional Pooling Blocks (ProjMap + ProjPool + OrthMap)
-        - Output Block (ProjMap + FC + Softmax)
+    A unified block that performs:
+    1. Projection (FRMap -> ReOrth)
+    2. Optional Pooling (ProjMap -> Pooling -> OrthMap)
     """
 
-    def __init__(
-        self,
-        input_dim: int,
-        q: int,
-        num_classes: int,
-        hidden_dims: list[int],
-        num_maps: int = 16,
-        use_pooling: bool = True,
-        pooling_n: int = 4,
-        pooling_type: str = "across",
-    ):
-        """
-        Initialize GrNet.
-
-        Args:
-            input_dim: Dimension of input Grassmann point (D in Gr(q, D))
-            q: Order of subspace
-            num_classes: Number of output classes
-            hidden_dims: List of hidden dimensions for each projection block
-            num_maps: Number of parallel transformations per FRMap layer
-            use_pooling: Whether to use pooling blocks
-            pooling_n: Number of instances for pooling
-            pooling_type: 'across' or 'spatial'
-        """
+    def __init__(self, d_in, d_out, q, num_maps=16, use_pooling=False, pooling_n=4):
         super().__init__()
-
-        self.input_dim = input_dim
-        self.q = q
-        self.num_classes = num_classes
-        self.hidden_dims = hidden_dims
-        self.num_maps = num_maps
+        self.projection = ProjectionBlock(d_in, d_out, num_maps)
         self.use_pooling = use_pooling
 
-        # Build projection blocks
-        self.projection_blocks = nn.ModuleList()
+        if use_pooling:
+            self.pooling_block = PoolingBlock(q, pooling_n, pooling_type="spatial")
+
+    def forward(self, X):
+        # X: (Batch, d_in, q)
+        X = self.projection(X)  # -> (Batch, d_out, q)
+
+        if self.use_pooling:
+            X = self.pooling_block(X)
+            # Output dimension will change based on pooling_n
+            # If spatial pooling with n=4, d_out becomes d_out/2
+
+        return X
+
+
+class GrNet(nn.Module):
+    def __init__(self, input_dim, q, num_classes, config):
+        super().__init__()
+        self.blocks = nn.ModuleList()
+
         current_dim = input_dim
 
-        for hidden_dim in hidden_dims:
-            self.projection_blocks.append(
-                ProjectionBlock(current_dim, hidden_dim, num_maps)
+        # config is a list of dicts describing the blocks
+        for block_cfg in config:
+            d_out = block_cfg["d_out"]
+            use_pool = block_cfg.get("use_pooling", False)
+            pool_n = block_cfg.get("pool_n", 4)
+
+            block = GrNetBlock(
+                d_in=current_dim,
+                d_out=d_out,
+                q=q,
+                use_pooling=use_pool,
+                pooling_n=pool_n,
             )
-            current_dim = hidden_dim
+            self.blocks.append(block)
 
-        # Optional pooling block
-        if use_pooling:
-            self.pooling_block = PoolingBlock(q, pooling_n, pooling_type)
-        else:
-            self.pooling_block = None
+            # Update dimensions for next layer
+            current_dim = d_out
+            if use_pool:
+                # Assuming spatial pooling W-ProjPooling
+                patch_size = int(pool_n**0.5)
+                current_dim = current_dim // patch_size
 
-        # Output block
         self.output_block = OutputBlock(current_dim, num_classes)
 
     def forward(self, X: torch.Tensor) -> torch.Tensor:
@@ -551,18 +509,9 @@ class GrNet(nn.Module):
         Returns:
             logits: Class logits (batch, num_classes)
         """
-        # Through projection blocks
-        for block in self.projection_blocks:
+        for block in self.blocks:
             X = block(X)
-
-        # Optional pooling
-        if self.pooling_block is not None:
-            X = self.pooling_block(X)
-
-        # Output
-        logits = self.output_block(X)
-
-        return logits
+        return self.output_block(X)
 
     def get_manifold_parameters(self) -> list[nn.Parameter]:
         """
@@ -633,55 +582,28 @@ class GrNet2Blocks(GrNet):
         )
 
 
-def create_grnet(num_blocks: int = 2, num_classes: int = 130) -> GrNet:
+def create_grnet(num_blocks=2):
     """
-    Create GrNet configured for HDM05 dataset.
-
-    Args:
-        num_blocks: Number of projection blocks (1 or 2)
-        num_classes: Number of action classes
-
-    Returns:
-        Configured GrNet model
+    Strict replication of HDM05 architecture from paper.
     """
-    config = {
-        "input_dim": 93,  # Covariance descriptor size
-        "q": 10,  # Subspace order
-        "num_classes": num_classes,
-        "hidden_dims": [80, 30],  # From paper: 93x80, 40x30
-        "num_maps": 16,
-        "use_pooling": True,
-        "pooling_n": 4,
-    }
+    q: int = 10
+    input_dim: int = 93
 
-    if num_blocks == 1:
-        return GrNet1Block(
-            input_dim=config["input_dim"],
-            q=config["q"],
-            num_classes=config["num_classes"],
-            hidden_dim=60,  # From paper
-            num_maps=config["num_maps"],
-            use_pooling=False,
-        )
-    elif num_blocks == 2:
-        return GrNet2Blocks(
-            input_dim=config["input_dim"],
-            q=config["q"],
-            num_classes=config["num_classes"],
-            hidden_dim1=80,  # From paper
-            hidden_dim2=30,  # From paper
-            num_maps=config["num_maps"],
-            use_pooling=False,
-        )
+    if num_blocks == 2:
+        # Paper: GrNet-2Blocks: 93x80, 40x30
+        # This implies:
+        # 1. 93 -> 80
+        # 2. Pooling (n=4, patch 2x2) reduces 80 -> 40
+        # 3. 40 -> 30
+        config = [
+            {"d_out": 80, "use_pooling": True, "pool_n": 4},
+            {"d_out": 30, "use_pooling": False},
+        ]
     else:
-        return GrNet(
-            input_dim=config["input_dim"],
-            q=config["q"],
-            num_classes=config["num_classes"],
-            hidden_dims=config["hidden_dims"],
-            num_maps=config["num_maps"],
-            use_pooling=config["use_pooling"],
-        )
+        # GrNet-1Block: 93x60
+        config = [{"d_out": 60, "use_pooling": False}]
+
+    return GrNet(input_dim, q, num_classes=130, config=config)
 
 
 def initialize_grnet_weights(model: GrNet) -> None:
