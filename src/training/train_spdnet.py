@@ -236,7 +236,7 @@ def main():
             save_checkpoint(args.checkpoint, model, optimizer, epoch, best_val_acc)
 
     # Save model
-    save_checkpoint(args.checkpoint, model, optimizer, epoch, val_acc)
+    save_checkpoint("experiments/checkpoints/spd/spdnet_geom_latest.pt", model, optimizer, epoch, val_acc)
     # ----------------------------------------------------------
     # Evaluación final (test)
     # ----------------------------------------------------------
