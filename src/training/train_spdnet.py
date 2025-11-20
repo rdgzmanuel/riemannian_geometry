@@ -8,7 +8,7 @@ from tqdm import tqdm
 
 from src.data.datasets import HDM05SPDDataset
 from src.data.data_loader import get_dataloaders, geom_collate
-from src.models.spdnet import SPDNet
+from src.models.spdnet import SPDNet, StiefelSGD
 from src.training.utils import get_device, save_checkpoint, set_seed
 
 
@@ -146,14 +146,14 @@ def main():
     # Modelo + Optimizer
     # ----------------------------------------------------------
     model = SPDNet(
-        d_in=d_in,
-        proj_dim=args.proj_dim,
+        input_dim=d_in,
+        hidden_dims=args.proj_dim,
         num_classes=num_classes,
-        metric=args.metric,
     ).to(device)
 
     criterion = nn.CrossEntropyLoss()
-    optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
+    # optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
+    optimizer = StiefelSGD(model.parameters(), lr=args.lr)
 
     # ----------------------------------------------------------
     # Training loop

@@ -45,7 +45,8 @@ class HDM05WindowsDataset(Dataset):
         # --- Escaneo inicial ---
         for f in all_files:
             data = np.load(f, allow_pickle=True)
-            label = str(data["label"])
+            label = data["label"]
+
             file_id = str(data["file_id"])
 
             if split_filter and not split_filter(file_id):
@@ -64,6 +65,7 @@ class HDM05WindowsDataset(Dataset):
 
     def __getitem__(self, idx):
         path, win_idx, label_int = self.items[idx]
+        
         data = np.load(path, allow_pickle=True)
         x = torch.from_numpy(data["windows"][win_idx]).float()
         y = torch.tensor(label_int).long()
@@ -77,7 +79,7 @@ class HDM05WindowsDataset(Dataset):
 class HDM05SPDDataset(Dataset):
     def __init__(
         self,
-        root: Path = HDM05_WINDOWS_DIR,
+        root: Path = HDM05_SPD_DIR,
         mapping_json: str ="./action2idx.json",
         split_filter: Callable[[str], bool] | None = None,
         transform: Callable | None = None,
