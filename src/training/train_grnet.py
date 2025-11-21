@@ -51,8 +51,8 @@ def main():
 
     ds = HDM05GrassmannDataset(
             root=HDM05_GRASSMANN_DIR,
-            max_nodes=30,
-            sampling="uniform"
+            # max_nodes=30,
+            # sampling="uniform"
         )
     seed = args.seed
     batch_size = args.batch_size
@@ -127,10 +127,10 @@ def main():
             f"val_acc={val_acc * 100:.2f}%"
         )
 
-        if val_acc > best_val_acc:
-            best_val_acc = val_acc
-            ckpt_name = f"checkpoints/grnet_acc_{best_val_acc:.4f}.pth"
-            save_checkpoint(ckpt_name, model, optimizer, epoch, best_val_acc)
+        # if val_acc > best_val_acc:
+        #     best_val_acc = val_acc
+        #     ckpt_name = f"checkpoints/grnet_acc_{best_val_acc:.4f}.pth"
+        #     save_checkpoint(ckpt_name, model, optimizer, epoch, best_val_acc)
 
         scheduler.step()
 
