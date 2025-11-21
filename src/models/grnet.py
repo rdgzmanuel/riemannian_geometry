@@ -183,7 +183,6 @@ class ProjPoolingFunction(torch.autograd.Function):
             grad_X = grad_output.unsqueeze(1).expand(-1, ctx.n, -1, -1) / ctx.n
         else:
             # Spatial unpooling
-            batch = grad_output.shape[0]
             grad_X = torch.nn.functional.interpolate(
                 grad_output,
                 size=(ctx.original_size, ctx.original_size),

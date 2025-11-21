@@ -21,8 +21,7 @@ class GrassmannOps:
         # Pytorch supports batched QR natively
         Q, R = torch.linalg.qr(X, mode="reduced")
 
-        # Strict diagonal positivity enforcement (crucial for unique derivative)
-        # Get diagonal elements
+        # Strict diagonal positivity enforcement
         diag_R = torch.diagonal(R, dim1=-2, dim2=-1)
         signs = torch.sign(diag_R)
         # Handle zeros by treating sign as 1
@@ -46,7 +45,7 @@ class GrassmannOps:
         R_inv_T = R_inv.transpose(-2, -1)
 
         # S = I - Q @ Q^T
-        batch_size, d, q = Q.shape
+        batch_size, d, _ = Q.shape
         I = (
             torch.eye(d, device=Q.device, dtype=Q.dtype)
             .unsqueeze(0)
@@ -102,7 +101,7 @@ class GrassmannOps:
         grad_U: torch.Tensor, U: torch.Tensor, Sigma: torch.Tensor
     ) -> torch.Tensor:
         # Batched implementation of Eq 16
-        batch_size, n, k = U.shape
+        batch_size, n, _ = U.shape
 
         # Compute K matrix (Broadcasting)
         # Sigma: (Batch, k)
@@ -129,14 +128,14 @@ class GrassmannOps:
         # Proj_perp = I - U U^T
         I = torch.eye(n, device=U.device).unsqueeze(0).expand(batch_size, -1, -1)
         UU_T = torch.bmm(U, U.transpose(-2, -1))
-        Proj_perp = I - UU_T
+        proj_perp = I - UU_T
 
         # The gradient flow to the orthogonal complement
         # Formula: (I - UU^T) @ grad_U @ diag(1/sigma) @ U^T
         # Note: This is an approximation if we don't have all eigenvectors.
         # Standard stable implementation for deep learning:
         term2 = torch.bmm(
-            torch.bmm(Proj_perp, grad_U),
+            torch.bmm(proj_perp, grad_U),
             (1.0 / Sigma.unsqueeze(-2)) * U.transpose(-2, -1),
         )
 
