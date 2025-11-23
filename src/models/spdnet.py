@@ -8,6 +8,22 @@ from torch.autograd import Function
 from src.manifolds.spd_ops import compute_P_matrix, retraction_stiefel
 
 
+def stiefel_init_param(W: torch.nn.Parameter) -> None:
+    # W: (d_out, d_in)
+    d_out, d_in = W.shape
+    if d_out > d_in:
+        A = torch.randn(d_out, d_in, device=W.device, dtype=W.dtype)
+        q, r = torch.linalg.qr(A.T)
+        q = q * torch.sign(torch.diag(r).clamp(min=1e-6))[:, None]
+        W.data.copy_(q.t()[:d_out, :d_in])
+    else:
+        A = torch.randn(d_in, d_out, device=W.device, dtype=W.dtype)
+        q, r = torch.linalg.qr(A)
+        diag = torch.sign(torch.diag(r))
+        q = q * diag[None, :]
+        W.data.copy_(q.t())
+
+
 class BiMapFunction(Function):
     """
     BiMap: X_k = W_k^T X_{k-1} W_k
@@ -289,6 +305,8 @@ class BiMapLayer(nn.Module):
         self.d_in = d_in
         self.d_out = d_out
         self.W = nn.Parameter(torch.randn(d_out, d_in))
+
+        stiefel_init_param(self.W)
 
     def forward(
         self,
