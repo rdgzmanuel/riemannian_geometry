@@ -44,13 +44,21 @@ def save_checkpoint(path: str, model, optimizer, epoch: int, best_val_acc: float
     print(f"Checkpoint guardado en {path}")
 
 
-def load_checkpoint(path: str, model, optimizer=None):
+def load_checkpoint(
+    path: str,
+    model: torch.nn.Module,
+    optimizer: torch.optim.Optimizer,
+    device: torch.device,
+) -> tuple[torch.nn.Module, torch.optim.Optimizer]:
     data = torch.load(path, map_location="cpu")
     model.load_state_dict(data["model_state"])
     if optimizer is not None and "optimizer_state" in data:
         optimizer.load_state_dict(data["optimizer_state"])
     print(f"Checkpoint cargado desde {path}")
-    return data.get("epoch", 0), data.get("best_val_acc", 0.0)
+
+    model.to(device)
+
+    return model, optimizer
 
 
 def load_resume_checkpoint(
@@ -101,6 +109,7 @@ def load_resume_checkpoint(
     model.to(device)
 
     return model, optimizer, start_epoch, best_val_acc
+
 
 def accuracy_from_logits(logits: torch.Tensor, y: torch.Tensor) -> float:
     """

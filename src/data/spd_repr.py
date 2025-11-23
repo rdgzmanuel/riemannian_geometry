@@ -9,14 +9,23 @@ from src.config.paths import HDM05_WINDOWS_DIR, HDM05_SPD_DIR
 # -----------------------------------------------------------
 # 1) COVARIANZA SPD
 # -----------------------------------------------------------
-def covariance_from_window(win: np.ndarray, eps: float = 1e-6) -> np.ndarray:
+def covariance_from_window(win: np.ndarray, eps: float = 1e-2) -> np.ndarray:
     """
     win: (T, d)
     Devuelve matriz SPD (d, d) = cov + eps*I
     """
+    # centrar
     X = win - win.mean(axis=0, keepdims=True)
+
+    # normalizar
+    std = X.std(axis=0)
+    X = X / (std + 1e-6)
+
+    # covarianza
     T = X.shape[0]
     C = (X.T @ X) / max(T - 1, 1)
+
+    # regularizacion
     C += eps * np.eye(C.shape[0], dtype=C.dtype)
     return C.astype(np.float32)
 
@@ -24,7 +33,7 @@ def covariance_from_window(win: np.ndarray, eps: float = 1e-6) -> np.ndarray:
 # -----------------------------------------------------------
 # 2) CONVERTIR UNA VENTANA A SPD
 # -----------------------------------------------------------
-def window_to_spd(win: np.ndarray, eps: float = 1e-6) -> np.ndarray:
+def window_to_spd(win: np.ndarray, eps: float = 1e-2) -> np.ndarray:
     """
     Devuelve una matriz SPD (d, d).
     """
@@ -36,7 +45,7 @@ def window_to_spd(win: np.ndarray, eps: float = 1e-6) -> np.ndarray:
 # -----------------------------------------------------------
 def build_spd_for_file(
     npz_path: Path,
-    eps: float = 1e-6,
+    eps: float = 1e-2,
 ) -> tuple[np.ndarray, int]:
     """
     Carga un npz de ventanas y devuelve:
@@ -63,7 +72,7 @@ def build_spd_for_file(
 def build_all_spd(
     src_dir: Path = HDM05_WINDOWS_DIR,
     dst_dir: Path = HDM05_SPD_DIR,
-    eps: float = 1e-6,
+    eps: float = 1e-2,
 ):
     """
     Recorre todos los npz de ventanas y genera:
