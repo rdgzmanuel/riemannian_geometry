@@ -135,8 +135,8 @@ class GrassmannOps:
         # Note: This is an approximation if we don't have all eigenvectors.
         # Standard stable implementation for deep learning:
         term2 = torch.bmm(
-            torch.bmm(proj_perp, grad_U),
-            (1.0 / Sigma.unsqueeze(-2)) * U.transpose(-2, -1),
+            torch.bmm(proj_perp, grad_U),       # (B, n, k)
+            (1.0 / Sigma.unsqueeze(-1)) * U.transpose(-2, -1),  # (B, k, n)
         )
 
         # Combine

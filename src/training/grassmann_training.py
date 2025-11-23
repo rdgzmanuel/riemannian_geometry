@@ -123,13 +123,15 @@ class RiemannianSGD(optimizer.Optimizer):
         Returns:
             Riemannian gradient (projection to tangent space)
         """
-        # Compute normal component: grad @ W^T @ W
-        normal_component = grad @ W.T @ W
+        # # Compute normal component: grad @ W^T @ W
+        # normal_component = grad @ W.T @ W
 
-        # Project: tangent_grad = grad - normal_component
-        tangent_grad = grad - normal_component
+        # # Project: tangent_grad = grad - normal_component
+        # tangent_grad = grad - normal_component
 
-        return tangent_grad
+        # return tangent_grad
+
+        return grad
 
     def _retract_to_manifold(
         self, W: torch.Tensor, update: torch.Tensor
@@ -145,13 +147,11 @@ class RiemannianSGD(optimizer.Optimizer):
         Returns:
             Updated weight matrix on manifold
         """
-        # W_new = W + update
         W_new = W + update
 
-        # Retract to manifold using QR decomposition
-        W_retracted = GrassmannOps.retraction_psd(W_new)
-
-        return W_retracted
+        # Normalize columns to unit norm
+        norm = W_new.norm(dim=0, keepdim=True).clamp(min=1e-6)
+        return W_new / norm
 
 
 class MixedOptimizer:

@@ -1,5 +1,3 @@
-# src/hdm05_grassmann/training/train_grnet.py
-
 from __future__ import annotations
 
 import argparse
@@ -15,7 +13,6 @@ from ..config.paths import HDM05_GRASSMANN_DIR
 from .grassmann_training import create_grnet_optimizer
 from .losses import get_classification_loss
 from .utils import get_device, save_checkpoint, set_seed
-
 
 def parse_args():
     parser = argparse.ArgumentParser(
@@ -142,6 +139,7 @@ def main():
     # Dataset
     # ----------------------------------------------------------
     ds = HDM05GrassmannDataset(root=HDM05_GRASSMANN_DIR)
+    num_classes = len(ds.label2idx)
 
     seed = args.seed
     batch_size = args.batch_size
@@ -154,17 +152,23 @@ def main():
 
     # Para averiguar T y d, cogemos una muestra
     x0, _ = next(iter(train_loader))  # x0: (T, d)
-    _, d_in, _ = x0.shape
+    _, d_in, q = x0.shape
     num_classes = len(ds.label2idx)
 
     print(f"GRNet: d_in={d_in} input_dim=({d_in}×{d_in}), num_classes={num_classes}")
 
     # ----------------------------------------------------------
-    # Modelo + Optimizer
+    # Model + Optimizer
     # ----------------------------------------------------------
-    model = create_grnet(num_blocks=num_blocks)
-
+    model = create_grnet(
+        num_classes=num_classes,
+        num_blocks=num_blocks,
+        input_dim=d_in,
+        q=q,
+    ).to(device)
+    
     criterion = get_classification_loss("ce")
+
     optimizer = create_grnet_optimizer(
         model,
         manifold_lr=manifold_lr,
@@ -177,35 +181,34 @@ def main():
     # ----------------------------------------------------------
     # Training loop
     # ----------------------------------------------------------
-    # best_val_acc = 0.0
-    # best_state = None
+    best_val_acc = 0.0
 
     for epoch in tqdm(range(1, args.epochs + 1), desc="Training"):
         train_loss, train_acc = train_step(
-            model, train_loader, optimizer, criterion, device, args.lr
+            model, train_loader, optimizer, criterion, device
         )
+        
         val_loss, val_acc = val_step(model, val_loader, criterion, device)
 
-        # print(
-        #     f"[Epoch {epoch:03d}] "
-        #     f"train: loss={train_loss:.4f} acc={train_acc*100:5.2f}% | "
-        #     f"val: loss={val_loss:.4f} acc={val_acc*100:5.2f}%"
-        # )
+        print(
+            f"[Epoch {epoch:03d}] "
+            f"train: loss={train_loss:.4f} acc={train_acc*100:5.2f}% | "
+            f"val: loss={val_loss:.4f} acc={val_acc*100:5.2f}%"
+        )
 
         tqdm.write(
             f"train: loss={train_loss:.4f} acc={train_acc * 100:5.2f}% | "
             f"val: loss={val_loss:.4f} acc={val_acc * 100:5.2f}%"
         )
 
-        # if val_acc > best_val_acc:
-        #     best_val_acc = val_acc
-        #     best_state = {k: v.cpu() for k, v in model.state_dict().items()}
-        #     save_checkpoint(args.checkpoint, model, optimizer, epoch, best_val_acc)
+        if val_acc > best_val_acc:
+            best_val_acc = val_acc
+            save_checkpoint(args.checkpoint, model, optimizer, epoch, best_val_acc)
 
     # Save model
     save_checkpoint(args.checkpoint, model, optimizer, epoch, val_acc)
     # ----------------------------------------------------------
-    # Evaluación final (test)
+    # Final evaluation (test)
     # ----------------------------------------------------------
     test_acc = test_step(model, test_loader, device)
     print(f"[TEST] acc={test_acc * 100:.2f}%")

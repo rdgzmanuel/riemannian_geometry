@@ -8,6 +8,9 @@ import torch.nn as nn
 from src.manifolds.grassmann_ops import GrassmannOps
 
 
+# ==================== Low-level autograd Functions ====================
+
+
 class FRMapFunction(torch.autograd.Function):
     """Full Rank Mapping Layer with custom backward."""
 
@@ -23,7 +26,15 @@ class FRMapFunction(torch.autograd.Function):
         Returns:
             Y: Output matrix (batch, d_out, q)
         """
-        Y = torch.bmm(W.unsqueeze(0).expand(X.shape[0], -1, -1), X)
+        B, d_in, q = X.shape
+
+        # --- SHAPE AUTOFIX ---
+        # W: (d_out, d_in) with d_in = X.shape[1]
+        if W.shape[1] != d_in and W.shape[0] == d_in:
+            W = W.t().contiguous()
+
+        # W: (d_out, d_in), X: (B, d_in, q)
+        Y = torch.bmm(W.unsqueeze(0).expand(B, -1, -1), X)
         ctx.save_for_backward(X, W)
         return Y
 
@@ -37,13 +48,14 @@ class FRMapFunction(torch.autograd.Function):
 
         Returns:
             grad_X: Gradient w.r.t. input
-            grad_W: Gradient w.r.t. weights (for PSD manifold optimization)
+            grad_W: Gradient w.r.t. weights
         """
         X, W = ctx.saved_tensors
+        B = grad_output.shape[0]
 
         # Gradient w.r.t. X: W^T @ grad_output
         grad_X = torch.bmm(
-            W.unsqueeze(0).expand(grad_output.shape[0], -1, -1).transpose(-2, -1),
+            W.unsqueeze(0).expand(B, -1, -1).transpose(-2, -1),
             grad_output,
         )
 
@@ -113,7 +125,7 @@ class ProjMapFunction(torch.autograd.Function):
         Backward pass through projection mapping.
 
         d(X @ X^T) = dX @ X^T + X @ dX^T
-        => grad_X = grad_P @ X + grad_P^T @ X = 2 * grad_P @ X (since grad_P is symmetric)
+        => grad_X = grad_P @ X + grad_P^T @ X = 2 * grad_P @ X (grad_P symmetric)
 
         Args:
             grad_P: Gradient w.r.t. P (batch, d, d)
@@ -141,24 +153,32 @@ class ProjPoolingFunction(torch.autograd.Function):
         Forward pass: Average n projection matrices or spatial pooling.
 
         Args:
-            X: Input projection matrices (batch, n, d, d) or (batch, d, d)
+            X:
+              - (batch, n, d, d) if 'across' (pool across several matrices)
+              - (batch, d, d)     if 'spatial' (pool over blocks of the same matrix)
             n: Number of instances to pool
 
         Returns:
-            Y: Pooled projection matrix (batch, d, d)
+            Y:
+              - (batch, d, d)    for 'across'
+              - (batch, d', d')  for 'spatial', with d' = d / sqrt(n)
         """
-        if X.dim() == 4:  # Across projection matrices
+        if X.dim() == 4:  # Across projection matrices: (B, n, d, d)
             Y = torch.mean(X, dim=1)
             ctx.n_type = "across"
-        else:  # Within projection matrix (spatial pooling)
-            # Reshape for spatial pooling
+        else:  # Within a projection matrix (spatial pooling): X: (B, d, d)
             batch, d, _ = X.shape
             patch_size = int(n**0.5)
 
-            # Use adaptive avg pooling
-            Y = torch.nn.functional.adaptive_avg_pool2d(
-                X, (d // patch_size, d // patch_size)
+            # Add channel: (B, 1, d, d)
+            X_im = X.unsqueeze(1)
+
+            # Use adaptive avg pooling (d/patch, d/patch)
+            Y_im = torch.nn.functional.adaptive_avg_pool2d(
+                X_im, (d // patch_size, d // patch_size)
             )
+            Y = Y_im.squeeze(1)  # (B, d/patch, d/patch)
+
             ctx.n_type = "spatial"
             ctx.original_size = d
             ctx.patch_size = patch_size
@@ -183,13 +203,18 @@ class ProjPoolingFunction(torch.autograd.Function):
             grad_X = grad_output.unsqueeze(1).expand(-1, ctx.n, -1, -1) / ctx.n
         else:
             # Spatial unpooling
-            grad_X = torch.nn.functional.interpolate(
-                grad_output,
+            # Add channel dimension
+            grad_im = grad_output.unsqueeze(1)  # (B, 1, d_r, d_r)
+
+            # Upsampling to original size
+            grad_up = torch.nn.functional.interpolate(
+                grad_im,
                 size=(ctx.original_size, ctx.original_size),
-                mode="bilinear",
-                align_corners=False,
+                mode="nearest",
+                align_corners=None,
             )
-            grad_X = grad_X / ctx.n
+
+            grad_X = grad_up.squeeze(1) / ctx.n  # (B, d, d)
 
         return grad_X, None
 
@@ -217,7 +242,6 @@ class OrthMapFunction(torch.autograd.Function):
     def backward(ctx, grad_U: torch.Tensor) -> tuple[torch.Tensor, None]:
         """
         Backward pass through eigenvalue decomposition.
-        Uses Proposition 1 from the paper (Equation 16).
 
         Args:
             grad_U: Gradient w.r.t. U (batch, d, q)
@@ -246,7 +270,7 @@ class FRMapLayer(nn.Module):
             d_out: Output dimension (must be < d_in)
             num_maps: Number of parallel transformations
         """
-        super().__init__()
+        nn.Module.__init__(self)
         assert d_out < d_in, "d_out must be less than d_in for dimensionality reduction"
 
         self.d_in = d_in
@@ -254,26 +278,45 @@ class FRMapLayer(nn.Module):
         self.num_maps = num_maps
 
         # Initialize weights as random full rank matrices
-        self.weights = nn.ParameterList([
-            nn.Parameter(torch.randn(d_out, d_in) / (d_in**0.5))
-            for _ in range(num_maps)
-        ])
+        self.weights = nn.ParameterList(
+            [
+                nn.Parameter(torch.randn(d_out, d_in) / (d_in**0.5))
+                for _ in range(num_maps)
+            ]
+        )
 
-    def forward(self, X: torch.Tensor) -> torch.Tensor:
+    def forward(self, X: torch.Tensor) -> torch.Tensor | list[torch.Tensor]:
         """
-        Forward pass.
+        Forward pass using only standard PyTorch operations.
 
         Args:
-            X: Input (batch, d_in, q) or list of (batch, d_in, q) if num_maps > 1
+            X: Input (batch, d_in, q)
 
         Returns:
-            Y: Output (batch, d_out, q) or list for multiple maps
+            Y: (batch, d_out, q) or list if num_maps > 1
         """
+        B, d_in, q = X.shape
+
+        def _apply_one(W: torch.Tensor, X: torch.Tensor) -> torch.Tensor:
+            # W_ok: (d_out, d_in) with d_in = X.shape[1]
+            if W.shape[1] == d_in:
+                W_ok = W
+            elif W.shape[0] == d_in:
+                W_ok = W.t()
+            else:
+                raise ValueError(
+                    f"FRMapLayer: incompatible shapes W={W.shape}, X={X.shape}"
+                )
+            W_exp = W_ok.unsqueeze(0).expand(B, -1, -1)
+            Y = torch.bmm(W_exp, X)  # (B, d_out, q)
+            return Y
+
         if self.num_maps == 1:
-            return FRMapFunction.apply(X, self.weights[0])
+            W = self.weights[0]
+            return _apply_one(W, X)
         else:
             # Apply each weight matrix
-            outputs = [FRMapFunction.apply(X, W) for W in self.weights]
+            outputs = [_apply_one(W, X) for W in self.weights]
             return outputs
 
 
@@ -283,7 +326,7 @@ class ReOrthLayer(nn.Module):
     def __init__(self):
         super().__init__()
 
-    def forward(self, X: torch.Tensor) -> torch.Tensor:
+    def forward(self, X: torch.Tensor | list[torch.Tensor]) -> torch.Tensor | list[torch.Tensor]:
         """
         Forward pass.
 
@@ -305,7 +348,7 @@ class ProjMapLayer(nn.Module):
     def __init__(self):
         super().__init__()
 
-    def forward(self, X: torch.Tensor) -> torch.Tensor:
+    def forward(self, X: torch.Tensor | list[torch.Tensor]) -> torch.Tensor | list[torch.Tensor]:
         """
         Forward pass.
 
@@ -329,8 +372,8 @@ class ProjPoolingLayer(nn.Module):
         Initialize projection pooling.
 
         Args:
-            n: Number of instances to pool
-            pooling_type: 'across' for across matrices, 'spatial' for within matrix
+            n: Number of instances to pool (for spatial, n = number of cells)
+            pooling_type: 'across' or 'spatial' (parameter only decorative here)
         """
         super().__init__()
         self.n = n
@@ -362,7 +405,7 @@ class OrthMapLayer(nn.Module):
         super().__init__()
         self.q = q
 
-    def forward(self, X: torch.Tensor) -> torch.Tensor:
+    def forward(self, X: torch.Tensor | list[torch.Tensor]) -> torch.Tensor | list[torch.Tensor]:
         """
         Forward pass.
 
@@ -384,35 +427,42 @@ class OrthMapLayer(nn.Module):
 class ProjectionBlock(nn.Module):
     """Projection Block: FRMap + ReOrth layers."""
 
-    def __init__(self, d_in: int, d_out: int, num_maps: int = 16):
+    def __init__(self, d_in: int, d_out: int, num_maps: int = 1):
         super().__init__()
         self.frmap = FRMapLayer(d_in, d_out, num_maps)
         self.reorth = ReOrthLayer()
-        self.num_maps = num_maps
 
     def forward(self, X: torch.Tensor) -> torch.Tensor:
-        """Forward through projection block."""
-        Y = self.frmap(X)
-        Y = self.reorth(Y)
+        """
+        Forward through projection block.
 
-        # If multiple maps, concatenate along batch dimension
+        X: (B, d_in, q) -> (B, d_out, q)
+        """
+        Y = self.frmap(X)    # (B, d_out, q) if num_maps=1
         if isinstance(Y, list):
-            Y = torch.cat(Y, dim=0)
-
+            Y = torch.cat(Y, dim=0)  # Concatenate if multiple maps
+        Y = self.reorth(Y)
         return Y
 
 
 class PoolingBlock(nn.Module):
     """Pooling Block: ProjMap + ProjPooling + OrthMap."""
 
-    def __init__(self, q: int, n: int = 4, pooling_type: str = "across"):
+    def __init__(self, q: int, n: int = 4, pooling_type: str = "spatial"):
         super().__init__()
         self.projmap = ProjMapLayer()
         self.projpool = ProjPoolingLayer(n, pooling_type)
         self.orthmap = OrthMapLayer(q)
 
     def forward(self, X: torch.Tensor) -> torch.Tensor:
-        """Forward through pooling block."""
+        """
+        Forward through pooling block.
+
+        X: (B, d, q) ->
+          ProjMap: (B, d, d)
+          ProjPooling spatial with n=4: (B, d/2, d/2)
+          OrthMap: (B, d/2, q)
+        """
         P = self.projmap(X)
         P_pooled = self.projpool(P)
         Y = self.orthmap(P_pooled)
@@ -420,7 +470,7 @@ class PoolingBlock(nn.Module):
 
 
 class OutputBlock(nn.Module):
-    """Output Block: ProjMap + FC + Softmax."""
+    """Output Block: ProjMap + FC."""
 
     def __init__(self, d: int, num_classes: int):
         super().__init__()
@@ -428,12 +478,16 @@ class OutputBlock(nn.Module):
         self.fc = nn.Linear(d * d, num_classes)
 
     def forward(self, X: torch.Tensor) -> torch.Tensor:
-        """Forward through output block."""
-        P = self.projmap(X)
+        """
+        Forward through output block.
+
+        X: (B, d, q) -> P=(B,d,d) -> flatten -> FC
+        """
+        P = self.projmap(X)              # (B, d, d)
 
         # Flatten projection matrices
         batch_size = P.shape[0]
-        P_flat = P.reshape(batch_size, -1)
+        P_flat = P.reshape(batch_size, -1)  # (B, d*d)
 
         # FC layer
         logits = self.fc(P_flat)
@@ -448,7 +502,8 @@ class GrNetBlock(nn.Module):
     2. Optional Pooling (ProjMap -> Pooling -> OrthMap)
     """
 
-    def __init__(self, d_in, d_out, q, num_maps=16, use_pooling=False, pooling_n=4):
+    def __init__(self, d_in: int, d_out: int, q: int, num_maps: int = 1,
+                 use_pooling: bool = False, pooling_n: int = 4):
         super().__init__()
         self.projection = ProjectionBlock(d_in, d_out, num_maps)
         self.use_pooling = use_pooling
@@ -456,8 +511,10 @@ class GrNetBlock(nn.Module):
         if use_pooling:
             self.pooling_block = PoolingBlock(q, pooling_n, pooling_type="spatial")
 
-    def forward(self, X):
-        # X: (Batch, d_in, q)
+    def forward(self, X: torch.Tensor) -> torch.Tensor:
+        """
+        X: (Batch, d_in, q) -> (Batch, d_out (possibly reduced), q)
+        """
         X = self.projection(X)  # -> (Batch, d_out, q)
 
         if self.use_pooling:
@@ -468,14 +525,31 @@ class GrNetBlock(nn.Module):
         return X
 
 
+# ==================== Full Network ====================
+
+
 class GrNet(nn.Module):
-    def __init__(self, input_dim, q, num_classes, config):
+    def __init__(self, input_dim: int, q: int, num_classes: int, config: list[dict]):
+        """
+        GrNet composed of several GrNetBlocks + OutputBlock.
+
+        Args:
+            input_dim: initial dimension d_in (e.g., 93)
+            q: subspace dimension (e.g., 10)
+            num_classes: number of classes (e.g., 70)
+            config: list of dicts, each describing a block:
+                {
+                    "d_out": int,
+                    "use_pooling": bool,
+                    "pool_n": int  # only if use_pooling
+                }
+        """
         super().__init__()
         self.blocks = nn.ModuleList()
 
         current_dim = input_dim
 
-        # config is a list of dicts describing the blocks
+        # Config is a list of dicts describing the blocks
         for block_cfg in config:
             d_out = block_cfg["d_out"]
             use_pool = block_cfg.get("use_pooling", False)
@@ -485,6 +559,7 @@ class GrNet(nn.Module):
                 d_in=current_dim,
                 d_out=d_out,
                 q=q,
+                num_maps=1,
                 use_pooling=use_pool,
                 pooling_n=pool_n,
             )
@@ -493,7 +568,7 @@ class GrNet(nn.Module):
             # Update dimensions for next layer
             current_dim = d_out
             if use_pool:
-                # Assuming spatial pooling W-ProjPooling
+                # Assuming spatial pooling via ProjPooling
                 patch_size = int(pool_n**0.5)
                 current_dim = current_dim // patch_size
 
@@ -515,24 +590,17 @@ class GrNet(nn.Module):
 
     def get_manifold_parameters(self) -> list[nn.Parameter]:
         """
-        Get parameters that lie on manifolds (for natural gradient optimizer).
-
-        Returns:
-            List of manifold parameters
+        Get parameters that lie on manifolds (FRMap layer weights).
         """
-        manifold_params = []
-
+        manifold_params: list[nn.Parameter] = []
         for block in self.blocks:
-            manifold_params.extend(block.frmap.weights)
-
+            # Each block has projection.frmap with weights
+            manifold_params.extend(block.projection.frmap.weights)
         return manifold_params
 
     def get_euclidean_parameters(self) -> list[nn.Parameter]:
         """
         Get Euclidean parameters (FC layer weights).
-
-        Returns:
-            List of Euclidean parameters
         """
         return list(self.output_block.fc.parameters())
 
@@ -582,28 +650,33 @@ class GrNet2Blocks(GrNet):
         )
 
 
-def create_grnet(num_blocks=2):
+# ==================== Builders & Initialization ====================
+
+
+def create_grnet(
+    num_classes: int,
+    num_blocks: int = 2,
+    input_dim: int = 93,
+    q: int = 10,
+) -> GrNet:
     """
     Strict replication of HDM05 architecture from paper.
-    """
-    q: int = 10
-    input_dim: int = 93
 
+    - 2 blocks:
+        1) 93 -> 80, pooling n=4 => ~40
+        2) 40 -> 30
+    - 1 block:
+        93 -> 60
+    """
     if num_blocks == 2:
-        # Paper: GrNet-2Blocks: 93x80, 40x30
-        # This implies:
-        # 1. 93 -> 80
-        # 2. Pooling (n=4, patch 2x2) reduces 80 -> 40
-        # 3. 40 -> 30
         config = [
             {"d_out": 80, "use_pooling": True, "pool_n": 4},
             {"d_out": 30, "use_pooling": False},
         ]
     else:
-        # GrNet-1Block: 93x60
         config = [{"d_out": 60, "use_pooling": False}]
 
-    return GrNet(input_dim, q, num_classes=130, config=config)
+    return GrNet(input_dim=input_dim, q=q, num_classes=num_classes, config=config)
 
 
 def initialize_grnet_weights(model: GrNet) -> None:
@@ -613,12 +686,9 @@ def initialize_grnet_weights(model: GrNet) -> None:
     Args:
         model: GrNet model to initialize
     """
-    # FRMap weights are already initialized as random full rank matrices
-    # in the FRMapLayer constructor
-
-    # Initialize FC layer weights
+    # FRMap weights are already initialized in FRMapLayer
     for module in model.modules():
         if isinstance(module, nn.Linear):
             nn.init.kaiming_normal_(module.weight, mode="fan_out", nonlinearity="relu")
             if module.bias is not None:
-                nn.init.constant_(module.bias, 0)
+                nn.init.constant_(module.bias, 0.0)
