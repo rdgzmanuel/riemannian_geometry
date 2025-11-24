@@ -17,9 +17,9 @@ def parse_args():
     parser = argparse.ArgumentParser(
         description="Train SPDNetGeomstats con HDM05-SPD"
     )
-    parser.add_argument("--batch_size", type=int, default=32)
-    parser.add_argument("--epochs", type=int, default=40)
-    parser.add_argument("--lr", type=float, default=5e-4)
+    parser.add_argument("--batch_size", type=int, default=30)
+    parser.add_argument("--epochs", type=int, default=100)
+    parser.add_argument("--lr", type=float, default=1e-2)
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--proj_dim", nargs="+", type=int,
                         default=[70, 50, 30])
@@ -207,7 +207,7 @@ def main():
 
     if args.resume and os.path.exists(args.checkpoint):
         model, optimizer, start_epoch, best_val_acc = load_resume_checkpoint(
-            args.checkpoint, model, optimizer, device
+            "experiments/checkpoints/spd/spdnet_geom_latest.pt", model, optimizer, device
         )
         print(
             f"Entrenamiento reanudado desde epoch {start_epoch}, "
