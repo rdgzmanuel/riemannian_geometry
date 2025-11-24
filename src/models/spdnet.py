@@ -44,14 +44,14 @@ class BiMapFunction(Function):
         ctx.save_for_backward(X, W)
 
         # Proyección a Stiefel en cada forward (aprox Riemanniano)
-        q, _ = torch.linalg.qr(W.t())    # (d_in, d_out)
-        W_st = q.t()                     # (d_out, d_in)
+        # q, _ = torch.linalg.qr(W.t())    # (d_in, d_out)
+        # W_st = q.t()                     # (d_out, d_in)
 
-        # WX: (B, d_in, d_out)
-        WX = torch.matmul(W_st, X)
+        # WX: (B, d_in, d_out) 
+        WX = torch.matmul(W, X)
 
         # Y = WWXᵀ: (B, d_out, d_out)
-        Y = torch.matmul(WX, W_st.t())
+        Y = torch.matmul(WX, W.t())
 
         if not torch.isfinite(Y).all():
             print("NaN/Inf en BiMap (Y antes de ReEig)")
@@ -84,7 +84,10 @@ class BiMapFunction(Function):
 
         # Gradient w.r.t. X_{k-1} using chain rule
         # dL/dX_{k-1} = W (dL/dX_k) W^T
-        grad_X = torch.matmul(torch.matmul(W.t(), grad_output), W)
+        grad_X = torch.matmul(
+            torch.matmul(W.t(), grad_output),
+            W
+        )
 
         # Euclidean gradient w.r.t. W (Eq. 9)
         # ∇L^(k)_{W_k} = 2 (dL/dX_k) W_k X_{k-1}
@@ -306,7 +309,11 @@ class BiMapLayer(nn.Module):
         self.d_out = d_out
         self.W = nn.Parameter(torch.randn(d_out, d_in))
 
+        # Inicialización: QR ortonormal
         stiefel_init_param(self.W)
+
+        # Marcamos que este parámetro usa StiefelSGD
+        self.W._on_stiefel = True
 
     def forward(
         self,
@@ -365,11 +372,13 @@ class SPDNet(nn.Module):
         d_in: int,
         proj_dim: int = [70, 50, 30],
         num_classes: int = 70,
+        debug: bool = False
     ):
         super().__init__()
         self.d_in = d_in
         self.proj_dim = proj_dim
         self.num_classes = num_classes
+        self.debug = debug
 
         layers = []
         current_dim = self.d_in
@@ -402,8 +411,18 @@ class SPDNet(nn.Module):
         Returns:
             logits: (batch_size, num_classes)
         """
+        outputs = {}
+        bimap_id = 1
+
         for layer in self.layers:
             X = layer(X)
+
+            if isinstance(layer, BiMapLayer) and self.debug:
+                outputs[f"bimap{bimap_id}"] = X.detach().cpu()
+                bimap_id += 1
+
+            if isinstance(layer, LogEigLayer) and self.debug:
+                outputs["logeig"] = X.detach().cpu()
 
         # Vectorize upper triangular part (including diagonal)
         # batch_size = X.size(0)
@@ -416,7 +435,7 @@ class SPDNet(nn.Module):
         # Final classification
         logits = self.fc(X_vec)
 
-        return logits
+        return logits, outputs
 
 
 # Custom optimizer for Stiefel manifold

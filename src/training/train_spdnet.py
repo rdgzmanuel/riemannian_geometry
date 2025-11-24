@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 
+import json
 import torch
 import torch.nn as nn
 from tqdm import tqdm
@@ -10,7 +11,17 @@ import os
 from src.data.datasets import HDM05SPDDataset
 from src.data.data_loader import get_dataloaders
 from src.models.spdnet import BiMapLayer, SPDNet, StiefelSGD
-from src.training.utils import get_device, save_checkpoint, set_seed, load_resume_checkpoint
+from src.training.utils import (
+    get_device,
+    save_checkpoint,
+    set_seed,
+    load_resume_checkpoint,
+    load_metrics_json,
+    save_metrics_json
+)
+
+
+from src.manifolds.spd_ops import compute_P_matrix, retraction_stiefel
 
 
 def parse_args():
@@ -25,6 +36,8 @@ def parse_args():
                         default=[70, 50, 30])
     parser.add_argument("--checkpoint", type=str,
                         default="experiments/checkpoints/spd/spdnet_geom.pt")
+    parser.add_argument("--json_metrics", type=str,
+                        default="experiments/checkpoints/spd/spdnet_metrics.json")
     parser.add_argument(
         "--resume",
         action="store_true",
@@ -62,7 +75,7 @@ def train_step(
         y = y.to(device)      # (B,)
 
         optimizer.zero_grad()
-        logits = model(X)
+        logits, _ = model(X)
         loss = criterion(logits, y)
 
         loss.backward()
@@ -105,7 +118,7 @@ def val_step(
         X = X.to(device)
         y = y.to(device)
 
-        logits = model(X)
+        logits, _ = model(X)
         loss = criterion(logits, y)
 
         total_loss += loss.item() * y.size(0)
@@ -142,7 +155,7 @@ def test_step(
         X = X.to(device)
         y = y.to(device)
 
-        logits = model(X)
+        logits, _ = model(X)
         preds = logits.argmax(dim=1)
 
         correct += (preds == y).sum().item()
@@ -198,14 +211,13 @@ def main():
     # Create optimizer
     optimizer = StiefelSGD(model.parameters(), lr=args.lr)
     criterion = nn.CrossEntropyLoss()
-    
 
     best_val_acc: float = 0.0
 
     start_epoch = 1
     best_val_acc = 0.0
 
-    if args.resume and os.path.exists(args.checkpoint):
+    if args.resume and os.path.exists(".\experiments\checkpoints\spd\spdnet_geom.pt"):
         model, optimizer, start_epoch, best_val_acc = load_resume_checkpoint(
             "experiments/checkpoints/spd/spdnet_geom_latest.pt", model, optimizer, device
         )
@@ -215,6 +227,9 @@ def main():
         )
     else:
         print("Entrenamiento desde cero.")
+
+    # Load json for metrics
+    metrics = load_metrics_json(args.json_metrics)
 
     for epoch in tqdm(range(start_epoch, args.epochs + 1), desc="Training"):
         train_loss, train_acc = train_step(model, train_loader, optimizer, criterion, device, args.lr)
@@ -231,9 +246,19 @@ def main():
             f"val: loss={val_loss:.4f} acc={val_acc*100:5.2f}%"
         )
 
+        metrics["train_loss"].append(train_loss)
+        metrics["train_acc"].append(train_acc)
+        metrics["val_loss"].append(val_loss)
+        metrics["val_acc"].append(val_acc)
+        metrics["epochs"].append(epoch)
+        save_metrics_json(args.json_metrics, metrics)
+
         if val_acc > best_val_acc:
             best_val_acc = val_acc
             save_checkpoint(args.checkpoint, model, optimizer, epoch, best_val_acc)
+            tqdm.write(
+                f"modelo guardado en la epoch {epoch} con val acc {val_acc}"
+            )
 
     # Save model
     save_checkpoint("experiments/checkpoints/spd/spdnet_geom_latest.pt", model, optimizer, epoch, val_acc)

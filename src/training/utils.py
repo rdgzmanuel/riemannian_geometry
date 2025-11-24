@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 import random
 from dataclasses import dataclass
@@ -41,7 +42,7 @@ def save_checkpoint(path: str, model, optimizer, epoch: int, best_val_acc: float
     )
     os.makedirs(os.path.dirname(path), exist_ok=True)
     torch.save(ckpt.__dict__, path)
-    print(f"Checkpoint guardado en {path}")
+    # print(f"Checkpoint guardado en {path}")
 
 
 def load_checkpoint(
@@ -119,3 +120,22 @@ def accuracy_from_logits(logits: torch.Tensor, y: torch.Tensor) -> float:
     correct = (preds == y).sum().item()
     total = y.numel()
     return correct / total
+
+
+def load_metrics_json(path):
+    if os.path.exists(path):
+        with open(path, "r") as f:
+            return json.load(f)
+    else:
+        return {
+            "train_loss": [],
+            "train_acc": [],
+            "val_loss": [],
+            "val_acc": [],
+            "epochs": []
+        }
+
+
+def save_metrics_json(path, metrics):
+    with open(path, "w") as f:
+        json.dump(metrics, f, indent=4)
