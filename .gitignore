@@ -4,6 +4,8 @@ experiments/
 # …pero permitir src/data/
 !src/data/
 
+/analysis_spdnet
+
 # action2indx
 action2idx.json
 

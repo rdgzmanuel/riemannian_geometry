@@ -7,10 +7,17 @@ import torch.nn as nn
 from tqdm import tqdm
 import os
 
+import matplotlib.pyplot as plt
+
 from src.data.datasets import HDM05SPDDataset
 from src.data.data_loader import get_dataloaders
 from src.models.spdnet import BiMapLayer, SPDNet, StiefelSGD
-from src.training.utils import get_device, load_checkpoint, set_seed
+from src.training.utils import (
+    get_device,
+    load_checkpoint,
+    set_seed,
+    load_metrics_json,
+)
 
 
 def parse_args():
@@ -25,7 +32,39 @@ def parse_args():
                         default=[70, 50, 30])
     parser.add_argument("--checkpoint", type=str,
                         default="experiments/checkpoints/spd/spdnet_geom.pt")
+    parser.add_argument("--json_metrics", type=str,
+                        default="experiments/checkpoints/spd/spdnet_metrics.json")
     return parser.parse_args()
+
+
+def plot_metrics(metrics, save_dir="plots"):
+    epochs = metrics["epochs"]
+
+    # Loss plot
+    plt.figure(figsize=(7, 5))
+    plt.plot(epochs, metrics["train_loss"], label="Train Loss")
+    plt.plot(epochs, metrics["val_loss"], label="Val Loss")
+    plt.xlabel("Epoch")
+    plt.ylabel("Loss")
+    plt.title("Training & Validation Loss")
+    plt.legend()
+    plt.grid(True)
+    plt.tight_layout()
+    plt.savefig(os.path.join(save_dir, "loss_plot.png"))
+    plt.close()
+
+    # Accuracy plot
+    plt.figure(figsize=(7, 5))
+    plt.plot(epochs, metrics["train_acc"], label="Train Acc")
+    plt.plot(epochs, metrics["val_acc"], label="Val Acc")
+    plt.xlabel("Epoch")
+    plt.ylabel("Accuracy")
+    plt.title("Training & Validation Accuracy")
+    plt.legend()
+    plt.grid(True)
+    plt.tight_layout()
+    plt.savefig(os.path.join(save_dir, "acc_plot.png"))
+    plt.close()
 
 
 @torch.no_grad()
@@ -52,7 +91,7 @@ def test_step(
         X = X.to(device)
         y = y.to(device)
 
-        logits = model(X)
+        logits, _ = model(X)
         preds = logits.argmax(dim=1)
 
         correct += (preds == y).sum().item()
@@ -111,6 +150,11 @@ def main():
 
     test_acc = test_step(model, test_loader, device)
     print(f"[TEST] acc={test_acc*100:.2f}%")
+
+    print("plotting...")
+
+    metrics = load_metrics_json(args.metrics_json)
+    plot_metrics(metrics)
 
 
 if __name__ == "__main__":
