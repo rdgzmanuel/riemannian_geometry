@@ -50,12 +50,12 @@ def compute_P_matrix(
     P = P * (1.0 - mask_diag)
 
     # Clamp para evitar valores extremos
-    P = torch.clamp(P, min=eps, max=eps)
+    P = torch.clamp(P, min=-eps, max=eps)
 
     return P
 
 
-def retraction_stiefel(W, gradient, lr):
+def  retraction_stiefel(W, gradient, lr):
     """
     Retraction operation to project back onto Stiefel manifold (Eq. 8)
     Args:
