@@ -529,7 +529,7 @@ class GrNetBlock(nn.Module):
 
 
 class GrNet(nn.Module):
-    def __init__(self, input_dim: int, q: int, num_classes: int, config: list[dict]):
+    def __init__(self, input_dim: int, q: int, num_classes: int, config: list[dict], check_input_orthonormal: bool = False, orthonormal_atol: float = 1e-3):
         """
         GrNet composed of several GrNetBlocks + OutputBlock.
 
@@ -546,6 +546,8 @@ class GrNet(nn.Module):
         """
         super().__init__()
         self.blocks = nn.ModuleList()
+        self.check_input_orthonormal = check_input_orthonormal
+        self.orthonormal_atol = orthonormal_atol
 
         current_dim = input_dim
 
@@ -584,6 +586,14 @@ class GrNet(nn.Module):
         Returns:
             logits: Class logits (batch, num_classes)
         """
+
+        if self.check_input_orthonormal:
+            _check_orthonormal_input(
+                X,
+                atol=self.orthonormal_atol,
+                verbose=self.training
+            )
+        
         for block in self.blocks:
             X = block(X)
         return self.output_block(X)
@@ -658,6 +668,8 @@ def create_grnet(
     num_blocks: int = 2,
     input_dim: int = 93,
     q: int = 10,
+    check_input_orthonormal: bool = True,
+    orthonormal_atol: float = 1e-3,
 ) -> GrNet:
     """
     Strict replication of HDM05 architecture from paper.
@@ -676,7 +688,7 @@ def create_grnet(
     else:
         config = [{"d_out": 60, "use_pooling": False}]
 
-    return GrNet(input_dim=input_dim, q=q, num_classes=num_classes, config=config)
+    return GrNet(input_dim=input_dim, q=q, num_classes=num_classes, config=config, check_input_orthonormal=check_input_orthonormal)
 
 
 def initialize_grnet_weights(model: GrNet) -> None:
@@ -692,3 +704,37 @@ def initialize_grnet_weights(model: GrNet) -> None:
             nn.init.kaiming_normal_(module.weight, mode="fan_out", nonlinearity="relu")
             if module.bias is not None:
                 nn.init.constant_(module.bias, 0.0)
+
+
+def _check_orthonormal_input(
+    X: torch.Tensor,
+    atol: float = 1e-3,
+    verbose: bool = False,
+) -> None:
+    """
+    Comprueba que las columnas de X son ortonormales:
+        X^T X ≈ I
+
+    Admite:
+      - X de shape (B, d, q)
+      - X de shape (d, q) -> se convierte a batch de tamaño 1
+    """
+    if X.dim() == 2:
+        X = X.unsqueeze(0)  # (1, d, q)
+    elif X.dim() != 3:
+        raise ValueError(f"Esperaba X con dim 2 o 3, obtuve {X.shape}")
+
+    B, d, q = X.shape
+    Xt = X.transpose(1, 2)          # (B, q, d)
+    gram = torch.bmm(Xt, X)         # (B, q, q)
+
+    I = torch.eye(q, device=X.device, dtype=X.dtype).expand(B, q, q)
+    diff = gram - I
+
+    frob_per_sample = torch.linalg.norm(diff, dim=(1, 2))  # ||·||_F por muestra
+    max_err = frob_per_sample.max().item()
+
+    if max_err > atol:
+        raise ValueError(
+            f"[GrNet] Input no ortonormal: max ||X^T X - I||_F = {max_err:.3e} > {atol:.1e}"
+        )

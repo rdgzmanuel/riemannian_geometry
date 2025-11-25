@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 import random
 from dataclasses import dataclass
+import matplotlib.pyplot as plt
 
 import numpy as np
 import torch
@@ -78,3 +79,34 @@ def accuracy_from_logits(logits: torch.Tensor, y: torch.Tensor) -> float:
     correct = (preds == y).sum().item()
     total = y.numel()
     return correct / total
+
+def plot_metrics_history(train_losses, val_losses, train_acc, val_acc):
+    # --------------------------------------------------------
+    # 1) FIGURA DE LOSS
+    # --------------------------------------------------------
+    plt.figure(figsize=(6,4))
+    plt.plot(train_losses, label="Train Loss")
+    plt.plot(val_losses, label="Val Loss")
+    plt.title("Loss")
+    plt.xlabel("Epoch")
+    plt.ylabel("Loss")
+    plt.grid(True)
+    plt.legend()
+    plt.tight_layout()
+    plt.savefig("loss.pdf", format="pdf")
+    plt.close()
+
+    # --------------------------------------------------------
+    # 2) FIGURA DE ACCURACY
+    # --------------------------------------------------------
+    plt.figure(figsize=(6,4))
+    plt.plot(train_acc, label="Train Accuracy")
+    plt.plot(val_acc, label="Val Accuracy")
+    plt.title("Accuracy")
+    plt.xlabel("Epoch")
+    plt.ylabel("Accuracy")
+    plt.grid(True)
+    plt.legend()
+    plt.tight_layout()
+    plt.savefig("accuracy.pdf", format="pdf")
+    plt.close()

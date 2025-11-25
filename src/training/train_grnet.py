@@ -8,11 +8,12 @@ from src.data.data_loader import get_dataloaders
 from src.data.datasets import HDM05GrassmannDataset
 from src.models.grnet import create_grnet
 from tqdm import tqdm
+import numpy as np
 
 from ..config.paths import HDM05_GRASSMANN_DIR
 from .grassmann_training import create_grnet_optimizer
 from .losses import get_classification_loss
-from .utils import get_device, save_checkpoint, set_seed
+from .utils import get_device, save_checkpoint, set_seed, plot_metrics_history
 
 def parse_args():
     parser = argparse.ArgumentParser(
@@ -183,12 +184,24 @@ def main():
     # ----------------------------------------------------------
     best_val_acc = 0.0
 
+    # Metrics history
+    train_losses = []
+    train_accuracies = []
+    val_losses = []
+    val_accuracies = []
+
     for epoch in tqdm(range(1, args.epochs + 1), desc="Training"):
         train_loss, train_acc = train_step(
             model, train_loader, optimizer, criterion, device
         )
         
         val_loss, val_acc = val_step(model, val_loader, criterion, device)
+
+        # Record metrics
+        train_losses.append(train_loss)
+        train_accuracies.append(train_acc)
+        val_losses.append(val_loss)
+        val_accuracies.append(val_acc)
 
         print(
             f"[Epoch {epoch:03d}] "
@@ -203,10 +216,23 @@ def main():
 
         if val_acc > best_val_acc:
             best_val_acc = val_acc
+            # Save model checkpoint
             save_checkpoint(args.checkpoint, model, optimizer, epoch, best_val_acc)
 
-    # Save model
-    save_checkpoint(args.checkpoint, model, optimizer, epoch, val_acc)
+    # Record metrics history
+    metrics_path = args.checkpoint.replace(".pt", "_metrics.npz")
+    np.savez_compressed(
+        metrics_path,
+        train_losses=np.array(train_losses),
+        train_accuracies=np.array(train_accuracies),
+        val_losses=np.array(val_losses),
+        val_accuracies=np.array(val_accuracies),
+    )
+    print(f"[INFO] Historial de métricas guardado en {metrics_path}")
+
+    # Plot and save metrics history
+    plot_metrics_history(train_losses, val_losses, train_accuracies, val_accuracies)
+
     # ----------------------------------------------------------
     # Final evaluation (test)
     # ----------------------------------------------------------

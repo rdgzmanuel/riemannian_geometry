@@ -99,6 +99,9 @@ class RiemannianSGD(optimizer.Optimizer):
                         buf.mul_(momentum).add_(grad, alpha=1.0)
                     grad = buf
 
+                # For manifold parameters, project gradient to tangent space
+                grad = self._project_to_tangent_space(grad, p.data)
+
                 # Update parameter
                 if is_manifold:
                     # Retraction to manifold
@@ -123,15 +126,13 @@ class RiemannianSGD(optimizer.Optimizer):
         Returns:
             Riemannian gradient (projection to tangent space)
         """
-        # # Compute normal component: grad @ W^T @ W
-        # normal_component = grad @ W.T @ W
+        # Compute normal component: grad @ W^T @ W
+        normal_component = grad @ W.T @ W
 
-        # # Project: tangent_grad = grad - normal_component
-        # tangent_grad = grad - normal_component
+        # Project: tangent_grad = grad - normal_component
+        tangent_grad = grad - normal_component
 
-        # return tangent_grad
-
-        return grad
+        return tangent_grad
 
     def _retract_to_manifold(
         self, W: torch.Tensor, update: torch.Tensor
