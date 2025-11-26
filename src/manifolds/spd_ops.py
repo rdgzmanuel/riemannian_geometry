@@ -55,7 +55,7 @@ def compute_P_matrix(
     return P
 
 
-def  retraction_stiefel(W, gradient, lr):
+def retraction_stiefel(W, gradient, lr):
     """
     Retraction operation to project back onto Stiefel manifold (Eq. 8)
     Args:

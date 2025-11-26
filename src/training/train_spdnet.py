@@ -21,16 +21,16 @@ from src.training.utils import (
 )
 
 
-from src.manifolds.spd_ops import compute_P_matrix, retraction_stiefel
-
-
 def parse_args():
     parser = argparse.ArgumentParser(
         description="Train SPDNetGeomstats con HDM05-SPD"
     )
-    parser.add_argument("--batch_size", type=int, default=30)
-    parser.add_argument("--epochs", type=int, default=100)
+    parser.add_argument("--batch_size", type=int, default=32)
+    parser.add_argument("--epochs", type=int, default=800)
     parser.add_argument("--lr", type=float, default=1e-2)
+    # parser.add_argument("--gamma", type=float, default=0.25)
+    # parser.add_argument("--step_size", type=float, default=150)
+    parser.add_argument("--lr_min", type=float, default=1e-4)
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--proj_dim", nargs="+", type=int,
                         default=[70, 50, 30])
@@ -210,6 +210,18 @@ def main():
 
     # Create optimizer
     optimizer = StiefelSGD(model.parameters(), lr=args.lr)
+    # scheduler = torch.optim.lr_scheduler.StepLR(
+    #     optimizer,
+    #     step_size=args.step_size,
+    #     gamma=args.gamma
+    # )
+
+    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+        optimizer,
+        T_max=args.epochs,   # número total de épocas
+        eta_min=args.lr_min  # LR mínimo
+    )
+
     criterion = nn.CrossEntropyLoss()
 
     best_val_acc: float = 0.0
@@ -217,9 +229,9 @@ def main():
     start_epoch = 1
     best_val_acc = 0.0
 
-    if args.resume and os.path.exists(".\experiments\checkpoints\spd\spdnet_geom.pt"):
+    if args.resume and os.path.exists("./experiments/checkpoints/spd/spdnet_geom.pt"):
         model, optimizer, start_epoch, best_val_acc = load_resume_checkpoint(
-            "experiments/checkpoints/spd/spdnet_geom_latest.pt", model, optimizer, device
+            "experiments/checkpoints/spd/spdnet_geom.pt", model, optimizer, device
         )
         print(
             f"Entrenamiento reanudado desde epoch {start_epoch}, "
@@ -232,18 +244,17 @@ def main():
     metrics = load_metrics_json(args.json_metrics)
 
     for epoch in tqdm(range(start_epoch, args.epochs + 1), desc="Training"):
+
+        # RESHUFFLE
         train_loss, train_acc = train_step(model, train_loader, optimizer, criterion, device, args.lr)
         val_loss, val_acc = val_step(model, val_loader, criterion, device)
 
-        # print(
-        #     f"[Epoch {epoch:03d}] "
-        #     f"train: loss={train_loss:.4f} acc={train_acc*100:5.2f}% | "
-        #     f"val: loss={val_loss:.4f} acc={val_acc*100:5.2f}%"
-        # )
+        scheduler.step()
 
         tqdm.write(
             f"train: loss={train_loss:.4f} acc={train_acc*100:5.2f}% | "
-            f"val: loss={val_loss:.4f} acc={val_acc*100:5.2f}%"
+            f"val: loss={val_loss:.4f} acc={val_acc*100:5.2f}% | "
+            f"LR = {scheduler.get_last_lr()[0]:.5e}"
         )
 
         metrics["train_loss"].append(train_loss)
@@ -257,7 +268,7 @@ def main():
             best_val_acc = val_acc
             save_checkpoint(args.checkpoint, model, optimizer, epoch, best_val_acc)
             tqdm.write(
-                f"modelo guardado en la epoch {epoch} con val acc {val_acc}"
+                f"modelo guardado en la epoch {epoch} con val acc {val_acc*100:5.2f}"
             )
 
     # Save model
