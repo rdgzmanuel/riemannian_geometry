@@ -5,8 +5,8 @@ Custom PyTorch layers with manual forward/backward passes for Grassmann manifold
 
 import torch
 import torch.nn as nn
-from src.manifolds.grassmann_ops import GrassmannOps
 
+from src.manifolds.grassmann_ops import GrassmannOps
 
 # ==================== Low-level autograd Functions ====================
 
@@ -26,14 +26,8 @@ class FRMapFunction(torch.autograd.Function):
         Returns:
             Y: Output matrix (batch, d_out, q)
         """
-        B, d_in, q = X.shape
-
-        # --- SHAPE AUTOFIX ---
-        # W: (d_out, d_in) with d_in = X.shape[1]
-        if W.shape[1] != d_in and W.shape[0] == d_in:
-            W = W.t().contiguous()
-
-        # W: (d_out, d_in), X: (B, d_in, q)
+        # Asumimos estrictamente que W es (d_out, d_in) y X es (B, d_in, q)
+        B = X.shape[0]
         Y = torch.bmm(W.unsqueeze(0).expand(B, -1, -1), X)
         ctx.save_for_backward(X, W)
         return Y
@@ -278,12 +272,10 @@ class FRMapLayer(nn.Module):
         self.num_maps = num_maps
 
         # Initialize weights as random full rank matrices
-        self.weights = nn.ParameterList(
-            [
-                nn.Parameter(torch.randn(d_out, d_in) / (d_in**0.5))
-                for _ in range(num_maps)
-            ]
-        )
+        self.weights = nn.ParameterList([
+            nn.Parameter(torch.randn(d_out, d_in) / (d_in**0.5))
+            for _ in range(num_maps)
+        ])
 
     def forward(self, X: torch.Tensor) -> torch.Tensor | list[torch.Tensor]:
         """
@@ -326,7 +318,9 @@ class ReOrthLayer(nn.Module):
     def __init__(self):
         super().__init__()
 
-    def forward(self, X: torch.Tensor | list[torch.Tensor]) -> torch.Tensor | list[torch.Tensor]:
+    def forward(
+        self, X: torch.Tensor | list[torch.Tensor]
+    ) -> torch.Tensor | list[torch.Tensor]:
         """
         Forward pass.
 
@@ -348,7 +342,9 @@ class ProjMapLayer(nn.Module):
     def __init__(self):
         super().__init__()
 
-    def forward(self, X: torch.Tensor | list[torch.Tensor]) -> torch.Tensor | list[torch.Tensor]:
+    def forward(
+        self, X: torch.Tensor | list[torch.Tensor]
+    ) -> torch.Tensor | list[torch.Tensor]:
         """
         Forward pass.
 
@@ -405,7 +401,9 @@ class OrthMapLayer(nn.Module):
         super().__init__()
         self.q = q
 
-    def forward(self, X: torch.Tensor | list[torch.Tensor]) -> torch.Tensor | list[torch.Tensor]:
+    def forward(
+        self, X: torch.Tensor | list[torch.Tensor]
+    ) -> torch.Tensor | list[torch.Tensor]:
         """
         Forward pass.
 
@@ -438,7 +436,7 @@ class ProjectionBlock(nn.Module):
 
         X: (B, d_in, q) -> (B, d_out, q)
         """
-        Y = self.frmap(X)    # (B, d_out, q) if num_maps=1
+        Y = self.frmap(X)  # (B, d_out, q) if num_maps=1
         if isinstance(Y, list):
             Y = torch.cat(Y, dim=0)  # Concatenate if multiple maps
         Y = self.reorth(Y)
@@ -483,7 +481,7 @@ class OutputBlock(nn.Module):
 
         X: (B, d, q) -> P=(B,d,d) -> flatten -> FC
         """
-        P = self.projmap(X)              # (B, d, d)
+        P = self.projmap(X)  # (B, d, d)
 
         # Flatten projection matrices
         batch_size = P.shape[0]
@@ -502,8 +500,15 @@ class GrNetBlock(nn.Module):
     2. Optional Pooling (ProjMap -> Pooling -> OrthMap)
     """
 
-    def __init__(self, d_in: int, d_out: int, q: int, num_maps: int = 1,
-                 use_pooling: bool = False, pooling_n: int = 4):
+    def __init__(
+        self,
+        d_in: int,
+        d_out: int,
+        q: int,
+        num_maps: int = 1,
+        use_pooling: bool = False,
+        pooling_n: int = 4,
+    ):
         super().__init__()
         self.projection = ProjectionBlock(d_in, d_out, num_maps)
         self.use_pooling = use_pooling
@@ -529,7 +534,15 @@ class GrNetBlock(nn.Module):
 
 
 class GrNet(nn.Module):
-    def __init__(self, input_dim: int, q: int, num_classes: int, config: list[dict], check_input_orthonormal: bool = False, orthonormal_atol: float = 1e-3):
+    def __init__(
+        self,
+        input_dim: int,
+        q: int,
+        num_classes: int,
+        config: list[dict],
+        check_input_orthonormal: bool = False,
+        orthonormal_atol: float = 1e-3,
+    ):
         """
         GrNet composed of several GrNetBlocks + OutputBlock.
 
@@ -589,11 +602,9 @@ class GrNet(nn.Module):
 
         if self.check_input_orthonormal:
             _check_orthonormal_input(
-                X,
-                atol=self.orthonormal_atol,
-                verbose=self.training
+                X, atol=self.orthonormal_atol, verbose=self.training
             )
-        
+
         for block in self.blocks:
             X = block(X)
         return self.output_block(X)
@@ -688,7 +699,13 @@ def create_grnet(
     else:
         config = [{"d_out": 60, "use_pooling": False}]
 
-    return GrNet(input_dim=input_dim, q=q, num_classes=num_classes, config=config, check_input_orthonormal=check_input_orthonormal)
+    return GrNet(
+        input_dim=input_dim,
+        q=q,
+        num_classes=num_classes,
+        config=config,
+        check_input_orthonormal=check_input_orthonormal,
+    )
 
 
 def initialize_grnet_weights(model: GrNet) -> None:
@@ -724,9 +741,9 @@ def _check_orthonormal_input(
     elif X.dim() != 3:
         raise ValueError(f"Esperaba X con dim 2 o 3, obtuve {X.shape}")
 
-    B, d, q = X.shape
-    Xt = X.transpose(1, 2)          # (B, q, d)
-    gram = torch.bmm(Xt, X)         # (B, q, q)
+    B, _, q = X.shape
+    Xt = X.transpose(1, 2)  # (B, q, d)
+    gram = torch.bmm(Xt, X)  # (B, q, q)
 
     I = torch.eye(q, device=X.device, dtype=X.dtype).expand(B, q, q)
     diff = gram - I

@@ -7,7 +7,6 @@ from collections.abc import Callable
 
 import torch
 import torch.optim as optimizer
-from src.manifolds.grassmann_ops import GrassmannOps
 
 
 class RiemannianSGD(optimizer.Optimizer):
@@ -100,7 +99,8 @@ class RiemannianSGD(optimizer.Optimizer):
                     grad = buf
 
                 # For manifold parameters, project gradient to tangent space
-                grad = self._project_to_tangent_space(grad, p.data)
+                if is_manifold:
+                    grad = self._project_to_tangent_space(grad, p.data)
 
                 # Update parameter
                 if is_manifold:
@@ -148,11 +148,7 @@ class RiemannianSGD(optimizer.Optimizer):
         Returns:
             Updated weight matrix on manifold
         """
-        W_new = W + update
-
-        # Normalize columns to unit norm
-        norm = W_new.norm(dim=0, keepdim=True).clamp(min=1e-6)
-        return W_new / norm
+        return W + update
 
 
 class MixedOptimizer:
@@ -242,6 +238,7 @@ def create_grnet_optimizer(
         manifold_params = model.get_manifold_parameters()
         euclidean_params = model.get_euclidean_parameters()
 
+        print("Using MixedOptimizer for GrNet training.")
         return MixedOptimizer(
             manifold_params=manifold_params,
             euclidean_params=euclidean_params,
@@ -252,6 +249,7 @@ def create_grnet_optimizer(
         )
     else:
         # Fall back to standard optimizer
+        print("Using standard SGD optimizer for GrNet training.")
         return torch.optim.SGD(
             model.parameters(),
             lr=manifold_lr,

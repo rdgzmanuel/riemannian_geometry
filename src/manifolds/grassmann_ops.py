@@ -40,10 +40,6 @@ class GrassmannOps:
         Optimized backward for ReOrth Layer where grad_R is known to be 0.
         Implements simplified Eq. 15 from the paper.
         """
-        # Batched inverse
-        R_inv = torch.linalg.inv(R)
-        R_inv_T = R_inv.transpose(-2, -1)
-
         # S = I - Q @ Q^T
         batch_size, d, _ = Q.shape
         I = (
@@ -62,9 +58,14 @@ class GrassmannOps:
         QT_gradQ_bsym = GrassmannOps._extract_below_symmetric(QT_gradQ)
         B = torch.bmm(Q, QT_gradQ_bsym)
 
-        # Result = (A + B) @ R^{-T}
-        grad_X = torch.bmm(A + B, R_inv_T)
-
+        # Queremos calcular: Output = (A + B) @ inv(R)^T
+        # Esto equivale a resolver el sistema lineal triangular
+        M = A + B
+        # solve_triangular resuelve AX = B. Nosotros tenemos X R^T = M -> R X^T = M^T
+        grad_X_T = torch.linalg.solve_triangular(
+            R, M.transpose(-2, -1), upper=True, left=True
+        )
+        grad_X = grad_X_T.transpose(-2, -1)
         return grad_X
 
     @staticmethod
@@ -135,7 +136,7 @@ class GrassmannOps:
         # Note: This is an approximation if we don't have all eigenvectors.
         # Standard stable implementation for deep learning:
         term2 = torch.bmm(
-            torch.bmm(proj_perp, grad_U),       # (B, n, k)
+            torch.bmm(proj_perp, grad_U),  # (B, n, k)
             (1.0 / Sigma.unsqueeze(-1)) * U.transpose(-2, -1),  # (B, k, n)
         )
 

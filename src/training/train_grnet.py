@@ -2,23 +2,23 @@ from __future__ import annotations
 
 import argparse
 
+import numpy as np
 import torch
 import torch.nn as nn
+from tqdm import tqdm
+
 from src.data.data_loader import get_dataloaders
 from src.data.datasets import HDM05GrassmannDataset
-from src.models.grnet import create_grnet
-from tqdm import tqdm
-import numpy as np
+from src.models.grnet import create_grnet, initialize_grnet_weights
 
 from ..config.paths import HDM05_GRASSMANN_DIR
 from .grassmann_training import create_grnet_optimizer
 from .losses import get_classification_loss
-from .utils import get_device, save_checkpoint, set_seed, plot_metrics_history
+from .utils import get_device, plot_metrics_history, save_checkpoint, set_seed
+
 
 def parse_args():
-    parser = argparse.ArgumentParser(
-        description="Entrenamiento GrNet (Geomstats) en HDM05"
-    )
+    parser = argparse.ArgumentParser(description="Entrenamiento GrNet en HDM05")
     parser.add_argument("--batch_size", type=int, default=32)
     parser.add_argument("--epochs", type=int, default=30)
     parser.add_argument("--lr", type=float, default=1e-3)
@@ -27,7 +27,7 @@ def parse_args():
     parser.add_argument(
         "--checkpoint",
         type=str,
-        default="experiments/checkpoints/grnet/grnet_geomstats.pt",
+        default="experiments/checkpoints/grnet/grnet.pt",
     )
     parser.add_argument("--fr_layers", type=str, default="16,8")
     parser.add_argument("--hidden_dims", type=str, default="128,64")
@@ -156,7 +156,7 @@ def main():
     _, d_in, q = x0.shape
     num_classes = len(ds.label2idx)
 
-    print(f"GRNet: d_in={d_in} input_dim=({d_in}×{d_in}), num_classes={num_classes}")
+    print(f"GrNet: d_in={d_in} input_dim=({d_in}×{d_in}), num_classes={num_classes}")
 
     # ----------------------------------------------------------
     # Model + Optimizer
@@ -167,7 +167,9 @@ def main():
         input_dim=d_in,
         q=q,
     ).to(device)
-    
+
+    initialize_grnet_weights(model)
+
     criterion = get_classification_loss("ce")
 
     optimizer = create_grnet_optimizer(
@@ -194,7 +196,7 @@ def main():
         train_loss, train_acc = train_step(
             model, train_loader, optimizer, criterion, device
         )
-        
+
         val_loss, val_acc = val_step(model, val_loader, criterion, device)
 
         # Record metrics
@@ -205,8 +207,8 @@ def main():
 
         print(
             f"[Epoch {epoch:03d}] "
-            f"train: loss={train_loss:.4f} acc={train_acc*100:5.2f}% | "
-            f"val: loss={val_loss:.4f} acc={val_acc*100:5.2f}%"
+            f"train: loss={train_loss:.4f} acc={train_acc * 100:5.2f}% | "
+            f"val: loss={val_loss:.4f} acc={val_acc * 100:5.2f}%"
         )
 
         tqdm.write(
