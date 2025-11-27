@@ -28,9 +28,9 @@ from src.data.windowing import build_all_windows
 
 
 def main():
-    print("===============================================")
-    print("       PIPELINE COMPLETA HDM05 → GRASSMANN")
-    print("===============================================")
+    print("=======================================================")
+    print("       PIPELINE COMPLETA HDM05 → GRASSMANN & SPD")
+    print("=======================================================")
 
     # ----------------------------------------------------------
     # 0. Verificar que hay .c3d disponibles

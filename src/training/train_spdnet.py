@@ -26,8 +26,9 @@ def parse_args():
         description="Train SPDNetGeomstats con HDM05-SPD"
     )
     parser.add_argument("--batch_size", type=int, default=32)
-    parser.add_argument("--epochs", type=int, default=800)
+    parser.add_argument("--epochs", type=int, default=200)
     parser.add_argument("--lr", type=float, default=1e-2)
+    parser.add_argument("--weight_decay", type=float, default=1e-4)
     # parser.add_argument("--gamma", type=float, default=0.25)
     # parser.add_argument("--step_size", type=float, default=150)
     parser.add_argument("--lr_min", type=float, default=1e-4)
@@ -52,7 +53,6 @@ def train_step(
     optimizer: torch.optim.Optimizer,
     criterion: nn.Module,
     device: torch.device,
-    lr: float,
 ):
     """
     Train one training epoch for the model
@@ -77,6 +77,10 @@ def train_step(
         optimizer.zero_grad()
         logits, _ = model(X)
         loss = criterion(logits, y)
+
+        # regularizacion
+        loss_reg = 5e-4 * model.regularization_loss()
+        loss = loss + loss_reg
 
         loss.backward()
         optimizer.step()
@@ -120,6 +124,10 @@ def val_step(
 
         logits, _ = model(X)
         loss = criterion(logits, y)
+
+        # regularizacion
+        loss_reg = 5e-4 * model.regularization_loss()
+        loss = loss + loss_reg
 
         total_loss += loss.item() * y.size(0)
         preds = logits.argmax(dim=1)
@@ -209,7 +217,10 @@ def main():
             module.W._on_stiefel = True
 
     # Create optimizer
-    optimizer = StiefelSGD(model.parameters(), lr=args.lr)
+    optimizer = StiefelSGD(
+        model.parameters(),
+        lr=args.lr,
+    )
     # scheduler = torch.optim.lr_scheduler.StepLR(
     #     optimizer,
     #     step_size=args.step_size,
@@ -246,7 +257,7 @@ def main():
     for epoch in tqdm(range(start_epoch, args.epochs + 1), desc="Training"):
 
         # RESHUFFLE
-        train_loss, train_acc = train_step(model, train_loader, optimizer, criterion, device, args.lr)
+        train_loss, train_acc = train_step(model, train_loader, optimizer, criterion, device)
         val_loss, val_acc = val_step(model, val_loader, criterion, device)
 
         scheduler.step()

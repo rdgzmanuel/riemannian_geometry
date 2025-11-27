@@ -325,7 +325,7 @@ class BiMapLayer(nn.Module):
 class ReEigLayer(nn.Module):
     def __init__(
         self,
-        eps: float = 1e-4,
+        eps: float = 1e-2,
     ):
         super().__init__()
         self.eps = eps
@@ -401,6 +401,16 @@ class SPDNet(nn.Module):
         vector_dim = current_dim * (current_dim + 1) // 2
         self.fc = nn.Linear(vector_dim, num_classes)
 
+    def regularization_loss(self):
+        reg = 0.0
+        for m in self.modules():
+            if isinstance(m, BiMapLayer):
+                W = m.W
+                gram = W @ W.t()
+                I = torch.eye(gram.size(0), device=W.device, dtype=W.dtype)
+                reg = reg + torch.norm(gram - I, p='fro')**2
+        return reg
+
     def forward(
         self,
         X: torch.Tensor
@@ -443,7 +453,11 @@ class StiefelSGD(torch.optim.Optimizer):
     """
     SGD optimizer with Stiefel manifold retraction
     """
-    def __init__(self, params, lr=0.01):
+    def __init__(
+        self,
+        params,
+        lr=0.01,
+    ):
         defaults = dict(lr=lr)
         super().__init__(params, defaults)
 
