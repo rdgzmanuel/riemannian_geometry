@@ -32,7 +32,7 @@ def parse_args():
                         default=[70, 50, 30])
     parser.add_argument("--checkpoint", type=str,
                         default="experiments/checkpoints/spd/spdnet_geom.pt")
-    parser.add_argument("--json_metrics", type=str,
+    parser.add_argument("--metrics_json", type=str,
                         default="experiments/checkpoints/spd/spdnet_metrics.json")
     return parser.parse_args()
 

@@ -92,7 +92,7 @@ class BiMapFunction(Function):
         # Euclidean gradient w.r.t. W (Eq. 9)
         # ∇L^(k)_{W_k} = 2 (dL/dX_k) W_k X_{k-1}
         mult = torch.matmul(W, X)
-        euclidean_grad = 2 * torch.matmul(grad_output, mult).mean(dim=0)  
+        euclidean_grad = 2 * torch.matmul(grad_output, mult).mean(dim=0)
 
         # Convert to Riemannian gradient (Eq. 7)
         # ∇̃L^(k)_{W_k} = ∇L^(k)_{W_k} - ∇L^(k)_{W_k} (W_k)^T W_k
@@ -325,7 +325,7 @@ class BiMapLayer(nn.Module):
 class ReEigLayer(nn.Module):
     def __init__(
         self,
-        eps: float = 1e-4,
+        eps: float = 1e-2,
     ):
         super().__init__()
         self.eps = eps
@@ -401,6 +401,16 @@ class SPDNet(nn.Module):
         vector_dim = current_dim * (current_dim + 1) // 2
         self.fc = nn.Linear(vector_dim, num_classes)
 
+    def regularization_loss(self):
+        reg = 0.0
+        for m in self.modules():
+            if isinstance(m, BiMapLayer):
+                W = m.W
+                gram = W @ W.t()
+                I = torch.eye(gram.size(0), device=W.device, dtype=W.dtype)
+                reg = reg + torch.norm(gram - I, p='fro')**2
+        return reg
+
     def forward(
         self,
         X: torch.Tensor
@@ -443,7 +453,11 @@ class StiefelSGD(torch.optim.Optimizer):
     """
     SGD optimizer with Stiefel manifold retraction
     """
-    def __init__(self, params, lr=0.01):
+    def __init__(
+        self,
+        params,
+        lr=0.01,
+    ):
         defaults = dict(lr=lr)
         super().__init__(params, defaults)
 
