@@ -92,7 +92,7 @@ class BiMapFunction(Function):
         # Euclidean gradient w.r.t. W (Eq. 9)
         # ∇L^(k)_{W_k} = 2 (dL/dX_k) W_k X_{k-1}
         mult = torch.matmul(W, X)
-        euclidean_grad = 2 * torch.matmul(grad_output, mult)
+        euclidean_grad = 2 * torch.matmul(grad_output, mult).mean(dim=0)  
 
         # Convert to Riemannian gradient (Eq. 7)
         # ∇̃L^(k)_{W_k} = ∇L^(k)_{W_k} - ∇L^(k)_{W_k} (W_k)^T W_k

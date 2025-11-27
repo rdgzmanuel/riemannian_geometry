@@ -38,6 +38,7 @@ def parse_args():
 
 
 def plot_metrics(metrics, save_dir="plots"):
+    os.makedirs(save_dir, exist_ok=True)
     epochs = metrics["epochs"]
 
     # Loss plot
@@ -153,7 +154,7 @@ def main():
 
     print("plotting...")
 
-    metrics = load_metrics_json(args.metrics_json)
+    metrics = load_metrics_json(args.json_metrics)
     plot_metrics(metrics)
 
 

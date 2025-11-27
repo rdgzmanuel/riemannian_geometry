@@ -219,7 +219,7 @@ def main():
 
     if args.resume and os.path.exists(".\experiments\checkpoints\spd\spdnet_geom.pt"):
         model, optimizer, start_epoch, best_val_acc = load_resume_checkpoint(
-            "experiments/checkpoints/spd/spdnet_geom_latest.pt", model, optimizer, device
+            "experiments/checkpoints/spd/spdnet_geom.pt", model, optimizer, device
         )
         print(
             f"Entrenamiento reanudado desde epoch {start_epoch}, "
