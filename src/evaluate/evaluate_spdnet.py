@@ -31,7 +31,7 @@ def parse_args():
     parser.add_argument("--proj_dim", nargs="+", type=int,
                         default=[70, 50, 30])
     parser.add_argument("--checkpoint", type=str,
-                        default="experiments/checkpoints/spd/spdnet_geom.pt")
+                        default="experiments/checkpoints/spd/spdnet_geom_65.pt")
     parser.add_argument("--metrics_json", type=str,
                         default="experiments/checkpoints/spd/spdnet_metrics.json")
     return parser.parse_args()
@@ -154,7 +154,7 @@ def main():
 
     print("plotting...")
 
-    metrics = load_metrics_json(args.json_metrics)
+    metrics = load_metrics_json(args.metrics_json)
     plot_metrics(metrics)
 
 
