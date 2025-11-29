@@ -198,7 +198,7 @@ Key findings and performance comparisons can be found in the notebooks and resul
 
 The `notebooks/` directory contains Jupyter notebooks for exploration and analysis:
 
-- **toy_example.ipynb**: Simple demonstrations of manifold operations and concepts
+- **toy_example.ipynb**: Demonstration of the use of Python libraries for working on Rieman manifolds with neural networks
 - **eda.ipynb**: Exploratory data analysis of the HDM05 dataset
 - **data_spd.ipynb**: Exploration of SPD matrix representations and properties
 
