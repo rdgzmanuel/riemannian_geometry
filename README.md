@@ -211,5 +211,5 @@ This project is licensed under the terms specified in the LICENSE file.
 ---
 
 **Course**: Information Geometry  
-**Authors**: Natalia Leyenda, Joaquín Mir, Sofía Pedrós, Manuel Rodriguez ([@rdgzmanuel](https://github.com/rdgzmanuel))  
+**Authors**: Natalia Leyenda ([@natley] (https://github.com/NatLey30)), Joaquín Mir ([@joaquinmaciias](https://github.com/joaquinmaciias)), Sofía Pedrós ([@sofiapedros] (https://github.com/sofiapedros)), Manuel Rodriguez ([@rdgzmanuel](https://github.com/rdgzmanuel))  
 **Year**: 2025

@@ -204,8 +204,10 @@ def save_metrics_json(path: str, metrics: dict) -> None:
     - path (str): path to save the metrics json
     - metrics (dict): metrics to save
     """
+    os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, "w") as f:
         json.dump(metrics, f, indent=4)
+
 def plot_metrics_history(train_losses, val_losses, train_acc, val_acc):
     # --------------------------------------------------------
     # 1) FIGURA DE LOSS

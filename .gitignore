@@ -4,7 +4,7 @@ runs/
 
 # …pero permitir src/data/
 !src/data/
-
+/experiments
 /analysis_spdnet
 
 # action2indx
