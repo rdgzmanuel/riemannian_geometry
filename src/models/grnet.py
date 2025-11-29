@@ -26,7 +26,7 @@ class FRMapFunction(torch.autograd.Function):
         Returns:
             Y: Output matrix (batch, d_out, q)
         """
-        # Asumimos estrictamente que W es (d_out, d_in) y X es (B, d_in, q)
+        # Asumming W is (d_out, d_in) and X is (B, d_in, q)
         B = X.shape[0]
         Y = torch.bmm(W.unsqueeze(0).expand(B, -1, -1), X)
         ctx.save_for_backward(X, W)
@@ -161,7 +161,7 @@ class ProjPoolingFunction(torch.autograd.Function):
             Y = torch.mean(X, dim=1)
             ctx.n_type = "across"
         else:  # Within a projection matrix (spatial pooling): X: (B, d, d)
-            batch, d, _ = X.shape
+            _, d, _ = X.shape
             patch_size = int(n**0.5)
 
             # Add channel: (B, 1, d, d)
@@ -287,7 +287,7 @@ class FRMapLayer(nn.Module):
         Returns:
             Y: (batch, d_out, q) or list if num_maps > 1
         """
-        B, d_in, q = X.shape
+        B, d_in, _ = X.shape
 
         def _apply_one(W: torch.Tensor, X: torch.Tensor) -> torch.Tensor:
             # W_ok: (d_out, d_in) with d_in = X.shape[1]
@@ -315,7 +315,7 @@ class FRMapLayer(nn.Module):
 class ReOrthLayer(nn.Module):
     """Re-Orthonormalization Layer using QR decomposition."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
 
     def forward(
@@ -339,7 +339,7 @@ class ReOrthLayer(nn.Module):
 class ProjMapLayer(nn.Module):
     """Projection Mapping Layer."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
 
     def forward(

@@ -78,7 +78,7 @@ class GrassmannOps:
 
     @staticmethod
     def eig_decomposition(
-        X: torch.Tensor, top_k: int = None
+        X: torch.Tensor, top_k: int | None = None
     ) -> tuple[torch.Tensor, torch.Tensor]:
         # Batched eigh
         # X is (Batch, D, D) projection matrix (symmetric)
@@ -125,7 +125,8 @@ class GrassmannOps:
         term1 = torch.bmm(torch.bmm(U, inner), U.transpose(-2, -1))
 
         # Term 2: Off-diagonal/subspace projection part
-        # Since we often only keep top_k, we need the projection to the orthogonal complement
+        # Since we often only keep top_k, we need the projection to the orthogonal
+        # complement
         # Proj_perp = I - U U^T
         I = torch.eye(n, device=U.device).unsqueeze(0).expand(batch_size, -1, -1)
         UU_T = torch.bmm(U, U.transpose(-2, -1))
