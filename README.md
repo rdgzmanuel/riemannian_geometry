@@ -18,8 +18,8 @@ Final project for the Information Geometry course exploring geometric deep learn
 
 This project implements and compares various geometric deep learning approaches on Riemannian manifolds, with a focus on:
 
-- **SPD Manifold Operations**: Symmetric Positive Definite matrices and SPDNet implementations
-- **Grassmann Manifold Operations**: Operations on Grassmann manifolds and related neural network architectures
+- **SPD Manifold Operations**: Symmetric Positive Definite matrices with the SPDNet implementation
+- **Grassmann Manifold Operations**: Operations on Grassmann manifolds wwith the GrNet implementation
 
 The project explores how geometric structure can be leveraged in deep learning, particularly for skeleton-based action recognition using the HDM05 motion capture dataset.
 
@@ -105,6 +105,11 @@ pip install -r requirements.txt
 python src/download_data.py
 ```
 
+4. Running the full pipeline to preprocess the data:
+```bash
+python src/run_pipeline.py
+```
+
 ## Models and Manifolds
 
 ### Symmetric Positive Definite (SPD) Manifold
@@ -115,7 +120,6 @@ The SPD manifold consists of symmetric matrices with positive eigenvalues. This 
 - Riemannian metric
 - Logarithmic and exponential maps
 - Geodesic computations
-- Parallel transport
 
 **SPDNet** (in `src/models/spdnet.py`):
 A neural network that operates directly on the SPD manifold, respecting its geometric structure.
@@ -127,14 +131,12 @@ The Grassmann manifold represents the space of k-dimensional linear subspaces of
 **Implemented operations** (in `src/manifolds/grassmann_ops.py`):
 - Grassmann metric
 - Projection operations
-- Tangent space computations
 - Geodesic calculations
 
 **Grassmann Networks**:
 - **GRNet** (in `src/models/grnet.py`): Neural network operating on Grassmann manifold
-- **GRGCN** (in `src/models/grgcn.py`): Graph convolutional network on Grassmann manifold
 
-## Datasets
+## Dataset
 
 ### HDM05 Motion Capture Dataset
 
@@ -167,15 +169,6 @@ python src/training/train_spdnet.py
 Train Grassmann networks:
 ```bash
 python src/training/train_grnet.py
-# or
-python src/training/train_grgcn.py
-```
-
-### Running the Full Pipeline
-
-Execute the complete training and evaluation pipeline:
-```bash
-python src/run_pipeline.py
 ```
 
 ### Evaluation
