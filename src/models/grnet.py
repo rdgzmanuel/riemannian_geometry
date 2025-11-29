@@ -133,7 +133,7 @@ class ProjMapFunction(torch.autograd.Function):
         grad_P_sym = 0.5 * (grad_P + grad_P.transpose(-2, -1))
 
         # grad_X = 2 * grad_P @ X
-        grad_X = 2.0 * torch.bmm(grad_P_sym, X)
+        grad_X = 2.0 * grad_P_sym @ X
 
         return grad_X
 
