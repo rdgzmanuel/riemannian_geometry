@@ -11,7 +11,12 @@ import numpy as np
 import torch
 
 
-def set_seed(seed: int = 42):
+def set_seed(seed: int = 42) -> None:
+    """
+    Set seed
+    Args:
+    - seed (int): seed to set
+    """
     random.seed(seed)
     np.random.seed(seed)
     torch.manual_seed(seed)
@@ -22,6 +27,12 @@ def set_seed(seed: int = 42):
 
 
 def get_device() -> torch.device:
+    """
+    Get device
+    Args: None
+    Returns:
+    device
+    """
     return torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
@@ -33,7 +44,16 @@ class Checkpoint:
     best_val_acc: float
 
 
-def save_checkpoint(path: str, model, optimizer, epoch: int, best_val_acc: float):
+def save_checkpoint(path: str, model, optimizer, epoch: int, best_val_acc: float) -> None:
+    """
+    Save a given checkpoint
+    Args:
+    - path (str): path to save the checkpoint
+    - model (nn.Module): model to save
+    - optimizer (torch.nn.optim): optimizer used
+    - epoch (int): epoch
+    - best_val_acc (float): best val accuracy up to the epoch
+    """
     ckpt = Checkpoint(
         epoch=epoch,
         model_state=model.state_dict(),
@@ -51,6 +71,15 @@ def load_checkpoint(
     optimizer: torch.optim.Optimizer,
     device: torch.device,
 ) -> tuple[torch.nn.Module, torch.optim.Optimizer]:
+    """
+    Load a given checkpoint
+    Args:
+    - path (str): path where the checkpoint is
+    - model (nn.Module): model to load
+    - optimizer (torch.nn.optim): optimizer used
+    - device (torch.device): device used
+    """
+    
     data = torch.load(path, map_location="cpu")
     model.load_state_dict(data["model_state"])
     if optimizer is not None and "optimizer_state" in data:
@@ -72,28 +101,17 @@ def load_resume_checkpoint(
     Load a training checkpoint and restore model weights, optimizer state,
     and metadata required to resume training.
 
-    Parameters
-    ----------
-    checkpoint_path : str
-        Path to the checkpoint file to load.
-    model : nn.Module
-        Model instance where the checkpoint weights will be loaded.
-    optimizer : optim.Optimizer
-        Optimizer whose state will be restored from the checkpoint.
-    device : torch.device
-        Device where the model and optimizer should be loaded.
+    Args:
+    - checkpoint_path (str): Path to the checkpoint file to load.
+    - model (nn.Module): Model instance where the checkpoint weights will be loaded.
+    - optimizer (optim.Optimizer): Optimizer whose state will be restored from the checkpoint.
+    - device (torch.device): Device where the model and optimizer should be loaded.
 
-    Returns
-    -------
-    model : nn.Module
-        The model with restored weights.
-    optimizer : optim.Optimizer
-        The optimizer with restored internal state (e.g., momentum).
-    start_epoch : int
-        The next epoch number to continue training from.
-        (checkpoint epoch + 1)
-    best_val_acc : float
-        The best validation accuracy stored inside the checkpoint.
+    Returns:
+    - model (nn.Module): Model instance where the checkpoint weights will be loaded.
+    - optimizer (optim.Optimizer): Optimizer whose state will be restored from the checkpoint.
+    - epoch (int): epoch
+    - best_val_acc (float): best val accuracy up to the epoch
 
     """
 
@@ -114,7 +132,12 @@ def load_resume_checkpoint(
 
 def accuracy_from_logits(logits: torch.Tensor, y: torch.Tensor) -> float:
     """
-    logits: (B, C), y: (B,)
+    Get accuracy form the logits
+    Args:
+    - logits (torch.Tensor): logits tensor (B, C)
+    - y (torch.Tensor): correct predictions (B, C)
+    Returns:
+        accuracy (float)
     """
     preds = logits.argmax(dim=1)
     correct = (preds == y).sum().item()
@@ -122,7 +145,15 @@ def accuracy_from_logits(logits: torch.Tensor, y: torch.Tensor) -> float:
     return correct / total
 
 
-def load_metrics_json(path):
+def load_metrics_json(path: str) -> dict:
+    """
+    Load the metrics of a json
+    
+    Args:
+    - path to the metrics json
+    Returns:
+     dict with information in the json
+    """
     if os.path.exists(path):
         with open(path, "r") as f:
             return json.load(f)
@@ -136,6 +167,13 @@ def load_metrics_json(path):
         }
 
 
-def save_metrics_json(path, metrics):
+def save_metrics_json(path: str, metrics: dict) -> None:
+    """
+    Save the metrics as a json
+    
+    Args:
+    - path (str): path to save the metrics json
+    - metrics (dict): metrics to save
+    """
     with open(path, "w") as f:
         json.dump(metrics, f, indent=4)

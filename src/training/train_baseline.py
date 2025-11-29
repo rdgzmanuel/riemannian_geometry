@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 import argparse
+import json
 import os
+
+
 
 import torch
 from src.data.datasets import HDM05WindowsDataset
@@ -13,13 +16,13 @@ from torch.utils.data import DataLoader, random_split
 from torchvision.transforms import ToTensor, Compose
 from .eval import evaluate_epoch
 from .losses import get_classification_loss
-from .utils import get_device, save_checkpoint, set_seed, load_resume_checkpoint
+from .utils import get_device, save_checkpoint, set_seed, load_resume_checkpoint, save_metrics_json, load_metrics_json
 
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Entrenamiento baseline MLP en HDM05")
     parser.add_argument("--batch_size", type=int, default=32)
-    parser.add_argument("--epochs", type=int, default=30)
+    parser.add_argument("--epochs", type=int, default=70)
     parser.add_argument("--lr", type=float, default=1e-3)
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--val_split", type=float, default=0.2)
@@ -30,6 +33,12 @@ def parse_args():
         "--resume",
         action="store_true",
         help="Reanuda el entrenamiento desde un checkpoint si existe",
+    )
+    parser.add_argument(
+        "--json_metrics",
+        type=str,
+        default="experiments/checkpoints/baseline/mlp_metrics.json",
+        help="Ruta para guardar métricas de entrenamiento en JSON"
     )
     return parser.parse_args()
 
@@ -44,7 +53,7 @@ def train_epoch(
     optimizer: torch.optim,
     criterion: torch.nn.CrossEntropyLoss,
     device: torch.device,
-) -> float:
+) -> tuple:
     """
     Train one training epoch for the model
     Args:
@@ -54,11 +63,12 @@ def train_epoch(
     - criterion (torch.nn.CrossEntropyLoss)
     - device (torch.device)
     Returns:
-    - (float): average loss of the epoch
+    - (tuple): average loss and average acc of the epoch
     """
     model.train()
     total_loss: float = 0.0
     total_samples: int = 0
+    total_correct: int = 0
 
     for x, y in dataloader:
         x: torch.Tensor = x.to(device)
@@ -71,9 +81,11 @@ def train_epoch(
         optimizer.step()
 
         total_loss += loss.item() * y.size(0)
+        total_correct += (logits.argmax(dim=1) == y).sum().item()
         total_samples += y.size(0)
-
-    return total_loss / max(total_samples, 1)
+    acc: float = total_correct / max(total_samples, 1)
+    avg_loss: float = total_loss / max(total_samples, 1)
+    return avg_loss, acc
 
 
 def val_epoch(
@@ -169,9 +181,7 @@ def main():
     device: torch.device = get_device()
     print(f"Device: {device}")
 
-    # ------------------------------------------------------------------
-    # Dataset: usamos un único dataset y lo partimos en train/val
-    # ------------------------------------------------------------------
+    # Load dataset
     ds = HDM05WindowsDataset()
 
     seed = args.seed
@@ -182,12 +192,13 @@ def main():
     )
 
     # Para averiguar T y d, cogemos una muestra
-    x0, _ = next(iter(train_loader))  # x0: (T, d)
+    x0, _ = next(iter(train_loader))
     _, T, d = x0.shape
     num_classes = len(ds.label2idx)
 
     print(f"MLPBaseline:{T, d} (T, d) input_dim={T * d}, num_classes={num_classes}")
 
+    # Load model, loss and optimizer
     model: MLPBaseline = MLPBaseline(input_dim=T * d, num_classes=num_classes).to(
         device
     )
@@ -199,6 +210,7 @@ def main():
     start_epoch = 1
     best_val_acc = 0.0
 
+    # Load the saved checkpoint if we want to resume training
     if args.resume and os.path.exists(args.checkpoint):
         model, optimizer, start_epoch, best_val_acc = load_resume_checkpoint(
             args.checkpoint, model, optimizer, device
@@ -210,8 +222,10 @@ def main():
     else:
         print("Entrenamiento desde cero.")
 
+    metrics = load_metrics_json(args.json_metrics)
+
     for epoch in range(start_epoch, args.epochs + 1):
-        train_loss: float = train_epoch(
+        train_loss, train_acc = train_epoch(
             model, train_loader, optimizer, criterion, device
         )
         val_loss, val_acc = val_epoch(model, val_loader, criterion, device)
@@ -223,6 +237,13 @@ def main():
             f"val_acc={val_acc * 100:.2f}%"
         )
 
+        metrics["train_loss"].append(train_loss)
+        metrics["train_acc"].append(train_acc)
+        metrics["val_loss"].append(val_loss)
+        metrics["val_acc"].append(val_acc)
+        metrics["epochs"].append(epoch)
+        save_metrics_json(args.json_metrics, metrics)
+
         # Guardar mejor modelo
         if val_acc > best_val_acc:
             best_val_acc = val_acc
@@ -231,7 +252,7 @@ def main():
     print(f"Entrenamiento finalizado. Mejor val_acc={best_val_acc * 100:.2f}%")
     save_checkpoint("experiments/checkpoints/baseline/mlp_latest.pt", model, optimizer, epoch, val_acc)
 
-    # Evaluar el mejor modelo guardado
+    # Eval the saved checkpoint
     eval_epoch(args.checkpoint, model, test_loader, device)
 
 

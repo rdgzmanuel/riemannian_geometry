@@ -53,7 +53,7 @@ def train_step(
     optimizer: torch.optim.Optimizer,
     criterion: nn.Module,
     device: torch.device,
-):
+) -> tuple:
     """
     Train one training epoch for the model
     Args:
@@ -101,7 +101,7 @@ def val_step(
     loader: torch.utils.data.DataLoader,
     criterion: nn.Module,
     device: torch.device,
-):
+) -> tuple:
     """
     Perform one validation epoch
     Args:
@@ -144,7 +144,7 @@ def test_step(
     model: nn.Module,
     loader: torch.utils.data.DataLoader,
     device: torch.device,
-):
+) -> float:
     """
     Perform one evaluation epoch of the best model
     Args:
@@ -179,9 +179,7 @@ def main():
     device = get_device()
     print(f"Device = {device}")
 
-    # ----------------------------------------------------------
-    # Dataset
-    # ----------------------------------------------------------
+    # Get dataset
     ds = HDM05SPDDataset()
 
     seed = args.seed
@@ -194,7 +192,7 @@ def main():
     )
 
     # Para averiguar T y d, cogemos una muestra
-    x0, _ = next(iter(train_loader))  # x0: (T, d)
+    x0, _ = next(iter(train_loader))
     _, d_in, _ = x0.shape
     num_classes = len(ds.label2idx)
 
@@ -202,9 +200,7 @@ def main():
         f"SPDNetGeomstats: d_in={d_in} input_dim=({d_in}×{d_in}), num_classes={num_classes}"
     )
 
-    # ----------------------------------------------------------
-    # Modelo + Optimizer
-    # ----------------------------------------------------------
+    # Model + optimizer
     model = SPDNet(
         d_in=d_in,
         proj_dim=args.proj_dim,
@@ -221,16 +217,12 @@ def main():
         model.parameters(),
         lr=args.lr,
     )
-    # scheduler = torch.optim.lr_scheduler.StepLR(
-    #     optimizer,
-    #     step_size=args.step_size,
-    #     gamma=args.gamma
-    # )
-
+    
+    # Define an scheduler
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
         optimizer,
-        T_max=args.epochs,   # número total de épocas
-        eta_min=args.lr_min  # LR mínimo
+        T_max=args.epochs,
+        eta_min=args.lr_min 
     )
 
     criterion = nn.CrossEntropyLoss()
@@ -240,6 +232,7 @@ def main():
     start_epoch = 1
     best_val_acc = 0.0
 
+    # Load checkpoint if we want to resume training
     if args.resume and os.path.exists("./experiments/checkpoints/spd/spdnet_geom.pt"):
         model, optimizer, start_epoch, best_val_acc = load_resume_checkpoint(
             "experiments/checkpoints/spd/spdnet_geom.pt", model, optimizer, device
@@ -256,7 +249,6 @@ def main():
 
     for epoch in tqdm(range(start_epoch, args.epochs + 1), desc="Training"):
 
-        # RESHUFFLE
         train_loss, train_acc = train_step(model, train_loader, optimizer, criterion, device)
         val_loss, val_acc = val_step(model, val_loader, criterion, device)
 
@@ -284,9 +276,8 @@ def main():
 
     # Save model
     save_checkpoint("experiments/checkpoints/spd/spdnet_geom_latest.pt", model, optimizer, epoch, val_acc)
-    # ----------------------------------------------------------
-    # Evaluación final (test)
-    # ----------------------------------------------------------
+    
+    # Test accuracy
     test_acc = test_step(model, test_loader, device)
     print(f"[TEST] acc={test_acc*100:.2f}%")
 

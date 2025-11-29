@@ -8,8 +8,8 @@ import torch.nn as nn
 
 class MLPBaseline(nn.Module):
     """
-    MLP simple para clasificar ventanas euclídeas (T, d).
-    x: (batch, T, d) -> flatten a (batch, T*d).
+    Simple MLP to classify Windows (T, d)
+
     """
 
     def __init__(
@@ -19,6 +19,13 @@ class MLPBaseline(nn.Module):
         hidden_dims: list[int] | None = None,
         dropout: float = 0.5,
     ) -> None:
+        """
+        Args:
+        - input_dim (int): Txd
+        - num_classes (int)
+        - hidden_dims (list)
+        - dropout (float)
+        """
         super().__init__()
         if hidden_dims is None:
             hidden_dims = [512, 256]
@@ -36,7 +43,11 @@ class MLPBaseline(nn.Module):
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """
-        x: (B, T, d)
+        Perform forward pass
+        Args:
+        - x (torch.Tensor): (B, T, d)
+        Returns:
+        - output (torch.Tensor): (B, C)
         """
         B, T, d = x.shape
         x = x.reshape(B, T * d)  # (B, T*d)

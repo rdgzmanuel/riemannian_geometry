@@ -3,10 +3,20 @@
 from __future__ import annotations
 
 import torch
+import torch.nn as nn
 from torch.utils.data import DataLoader
 
 
-def evaluate_epoch(model, loader: DataLoader, device, criterion):
+def evaluate_epoch(model: nn.Module, loader: DataLoader, device: torch.device, criterion):
+    """
+    Perform one validation epoch of the best model
+    Args:
+    - model (nn.Module): model
+    - loader (Dataloader): test dataloader
+    - device (torch.device)
+    Returns:
+    - Test accuracy (float), test loss (float)
+    """
     model.eval()
     total_loss = 0.0
     total_correct = 0

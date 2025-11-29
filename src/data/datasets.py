@@ -45,7 +45,7 @@ class HDM05WindowsDataset(Dataset):
         # --- Escaneo inicial ---
         for f in all_files:
             data = np.load(f, allow_pickle=True)
-            label = str(data["label"])
+            label = data["label"]
             file_id = str(data["file_id"])
 
             if split_filter and not split_filter(file_id):

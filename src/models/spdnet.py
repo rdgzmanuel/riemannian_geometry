@@ -9,7 +9,9 @@ from src.manifolds.spd_ops import compute_P_matrix, retraction_stiefel
 
 
 def stiefel_init_param(W: torch.nn.Parameter) -> None:
-    # W: (d_out, d_in)
+    """
+    Initialize params in Stiefel
+    """
     d_out, d_in = W.shape
     if d_out > d_in:
         A = torch.randn(d_out, d_in, device=W.device, dtype=W.dtype)

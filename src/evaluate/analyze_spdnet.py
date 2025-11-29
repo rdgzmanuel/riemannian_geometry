@@ -22,7 +22,6 @@ from sklearn.manifold import TSNE
 from sklearn.preprocessing import StandardScaler
 from scipy.linalg import eigh
 
-# OPCIONAL
 try:
     import umap
     HAS_UMAP = True

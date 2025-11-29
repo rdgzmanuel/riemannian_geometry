@@ -1,9 +1,10 @@
-# src/hdm05_grassmann/training/losses.py
-
 import torch.nn as nn
 
 
 def get_classification_loss(name: str = "ce"):
+    """
+    Get classification loss (Cross Entropy loss)
+    """
     name = name.lower()
     if name in ("ce", "cross_entropy"):
         return nn.CrossEntropyLoss()
