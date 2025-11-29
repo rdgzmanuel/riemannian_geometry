@@ -1,6 +1,7 @@
 # Data folder
 data/
-experiments/
+runs/
+
 # …pero permitir src/data/
 !src/data/
 

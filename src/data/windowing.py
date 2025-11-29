@@ -117,9 +117,7 @@ def build_all_windows(
 
     Formato de salida:
       - un npz por secuencia original:
-        * windows: (Nw, T, d)
-        * label: str
-        * file_id: str
+        * label: int
     """
     dst_dir.mkdir(parents=True, exist_ok=True)
 

@@ -3,14 +3,12 @@
 from __future__ import annotations
 
 import argparse
-from collections import defaultdict
 
-import numpy as np
 import torch
+
 from src.data.data_loader import get_dataloaders, graph_collate
-from src.data.datasets import HDM05GrassmannGraphDataset, HDM05GrassmannDataset
+from src.data.datasets import HDM05GrassmannDataset, HDM05GrassmannGraphDataset
 from src.models.grgcn import GrGCNPlusPlusNetGeomstats
-from torch.utils.data import DataLoader, Dataset, random_split
 
 from .losses import get_classification_loss
 from .utils import get_device, save_checkpoint, set_seed
@@ -50,10 +48,10 @@ def train_epoch(model, loader, device, criterion, optimizer):
         U = U.to(device)  # (B, N, d, p)
         A = A.to(device)  # (B, N, N)
         y = y.to(device)
-    # for U_list, A_list, y in loader:
-    #     U_list = [u.to(device) for u in U_list]
-    #     A_list = [a.to(device) for a in A_list]
-    #     y = y.to(device)
+        # for U_list, A_list, y in loader:
+        #     U_list = [u.to(device) for u in U_list]
+        #     A_list = [a.to(device) for a in A_list]
+        #     y = y.to(device)
 
         optimizer.zero_grad()
         logits = model(U, A)
@@ -83,12 +81,8 @@ def main():
     batch_size = args.batch_size
 
     train_loader, val_loader, test_loader = get_dataloaders(
-        graph_ds,
-        batch_size=batch_size,
-        seed=seed,
-        collate_fn=graph_collate
+        graph_ds, batch_size=batch_size, seed=seed, collate_fn=graph_collate
     )
-
 
     U0, A0, y0 = graph_ds[0]
     N0, d, p_in = U0.shape
@@ -129,10 +123,10 @@ def main():
                 A = A.to(device)
                 y = y.to(device)
 
-            # for U_list, A_list, y in val_loader:
-            #     U_list = [u.to(device) for u in U_list]
-            #     A_list = [a.to(device) for a in A_list]
-            #     y = y.to(device)
+                # for U_list, A_list, y in val_loader:
+                #     U_list = [u.to(device) for u in U_list]
+                #     A_list = [a.to(device) for a in A_list]
+                #     y = y.to(device)
 
                 logits = model(U, A)
                 loss = criterion(logits, y)

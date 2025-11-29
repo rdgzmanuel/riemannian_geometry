@@ -50,7 +50,7 @@ def build_grassmann_for_file(
     """
     data = np.load(npz_path, allow_pickle=True)
     windows = data["windows"]  # (Nw, T, d)
-    label = str(data["label"])
+    label_int = int(data["label"])
 
     Nw, T, d = windows.shape
     subspaces = np.zeros((Nw, d, p), dtype=np.float32)
@@ -58,7 +58,7 @@ def build_grassmann_for_file(
     for i in range(Nw):
         subspaces[i] = window_to_grassmann(windows[i], p=p)
 
-    return subspaces, label
+    return subspaces, label_int
 
 
 def build_all_grassmann(
@@ -77,7 +77,7 @@ def build_all_grassmann(
 
     for npz_path in npz_files:
         print(f"Grassmann repr {npz_path.name}")
-        subspaces, label = build_grassmann_for_file(npz_path, p=p)
+        subspaces, label_int = build_grassmann_for_file(npz_path, p=p)
         if subspaces.shape[0] == 0:
             print("  No windows, skipping")
             continue
@@ -89,7 +89,7 @@ def build_all_grassmann(
         np.savez_compressed(
             out_path,
             subspaces=subspaces,
-            label=label,
+            label=label_int,
             file_id=file_id,
         )
         print(f" Saved {out_path}")

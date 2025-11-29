@@ -101,7 +101,9 @@ def get_dataloaders(
         batch_size=batch_size,
         shuffle=True,
         collate_fn=collate_fn,
-        drop_last=False
+        drop_last=False,
+        num_workers=4,
+        pin_memory=True,
     )
 
     val_loader = DataLoader(
@@ -109,7 +111,9 @@ def get_dataloaders(
         batch_size=batch_size,
         shuffle=False,
         collate_fn=collate_fn,
-        drop_last=False
+        drop_last=False,
+        num_workers=4,
+        pin_memory=True,
     )
 
     test_loader = DataLoader(
@@ -117,7 +121,9 @@ def get_dataloaders(
         batch_size=batch_size,
         shuffle=False,
         collate_fn=collate_fn,
-        drop_last=False
+        drop_last=False,
+        num_workers=4,
+        pin_memory=True,
     )
 
     return train_loader, val_loader, test_loader

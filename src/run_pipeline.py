@@ -60,9 +60,9 @@ def main():
     # ----------------------------------------------------------
     # 3. Grassmann: windows → grassmann
     # ----------------------------------------------------------
-    # print("\n [3/4] Generando representación Grassmann...")
-    # build_all_grassmann(src_dir=HDM05_WINDOWS_DIR, dst_dir=HDM05_GRASSMANN_DIR)
-    # print(" Representaciones Grassmann generadas.")
+    print("\n [3/4] Generando representación Grassmann...")
+    build_all_grassmann(src_dir=HDM05_WINDOWS_DIR, dst_dir=HDM05_GRASSMANN_DIR)
+    print(" Representaciones Grassmann generadas.")
 
     # ----------------------------------------------------------
     # 4. SPD: windows → SPD

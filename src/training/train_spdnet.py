@@ -13,7 +13,7 @@ from src.data.data_loader import get_dataloaders
 from src.models.spdnet import BiMapLayer, SPDNet, StiefelSGD
 from src.training.utils import (
     get_device,
-    save_checkpoint,
+    save_checkpoint_spdnet,
     set_seed,
     load_resume_checkpoint,
     load_metrics_json,
@@ -269,13 +269,13 @@ def main():
 
         if val_acc > best_val_acc:
             best_val_acc = val_acc
-            save_checkpoint(args.checkpoint, model, optimizer, epoch, best_val_acc)
+            save_checkpoint_spdnet(args.checkpoint, model, optimizer, epoch, best_val_acc)
             tqdm.write(
                 f"modelo guardado en la epoch {epoch} con val acc {val_acc*100:5.2f}"
             )
 
     # Save model
-    save_checkpoint("experiments/checkpoints/spd/spdnet_geom_latest.pt", model, optimizer, epoch, val_acc)
+    save_checkpoint_spdnet("experiments/checkpoints/spd/spdnet_geom_latest.pt", model, optimizer, epoch, val_acc)
     
     # Test accuracy
     test_acc = test_step(model, test_loader, device)

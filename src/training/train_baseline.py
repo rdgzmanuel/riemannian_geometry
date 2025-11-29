@@ -16,7 +16,7 @@ from torch.utils.data import DataLoader, random_split
 from torchvision.transforms import ToTensor, Compose
 from .eval import evaluate_epoch
 from .losses import get_classification_loss
-from .utils import get_device, save_checkpoint, set_seed, load_resume_checkpoint, save_metrics_json, load_metrics_json
+from .utils import get_device, save_checkpoint_spdnet, set_seed, load_resume_checkpoint, save_metrics_json, load_metrics_json
 
 
 def parse_args():
@@ -247,10 +247,10 @@ def main():
         # Guardar mejor modelo
         if val_acc > best_val_acc:
             best_val_acc = val_acc
-            save_checkpoint(args.checkpoint, model, optimizer, epoch, best_val_acc)
+            save_checkpoint_spdnet(args.checkpoint, model, optimizer, epoch, best_val_acc)
 
     print(f"Entrenamiento finalizado. Mejor val_acc={best_val_acc * 100:.2f}%")
-    save_checkpoint("experiments/checkpoints/baseline/mlp_latest.pt", model, optimizer, epoch, val_acc)
+    save_checkpoint_spdnet("experiments/checkpoints/baseline/mlp_latest.pt", model, optimizer, epoch, val_acc)
 
     # Eval the saved checkpoint
     eval_epoch(args.checkpoint, model, test_loader, device)

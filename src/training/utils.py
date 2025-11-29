@@ -6,6 +6,7 @@ import json
 import os
 import random
 from dataclasses import dataclass
+import matplotlib.pyplot as plt
 
 import numpy as np
 import torch
@@ -44,7 +45,7 @@ class Checkpoint:
     best_val_acc: float
 
 
-def save_checkpoint(path: str, model, optimizer, epoch: int, best_val_acc: float) -> None:
+def save_checkpoint_spdnet(path: str, model, optimizer, epoch: int, best_val_acc: float) -> None:
     """
     Save a given checkpoint
     Args:
@@ -63,6 +64,34 @@ def save_checkpoint(path: str, model, optimizer, epoch: int, best_val_acc: float
     os.makedirs(os.path.dirname(path), exist_ok=True)
     torch.save(ckpt.__dict__, path)
     # print(f"Checkpoint guardado en {path}")
+
+def save_checkpoint(
+    path: str,
+    model,
+    optimizer,
+    epoch: int,
+    best_val_acc: float,
+):
+    """
+    Guarda un checkpoint incluyendo:
+      - epoch
+      - estado del modelo
+      - estado del optimizer
+      - mejor accuracy de validación
+      - nombre de la red (nuevo)
+    """
+
+    ckpt = {
+        "epoch": epoch,
+        "model_state": model.state_dict(),
+        "optimizer_state": optimizer.state_dict(),
+        "best_val_acc": best_val_acc,
+        "checkpoint_acc": best_val_acc,
+    }
+
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    torch.save(ckpt, path)
+    print(f"Checkpoint guardado en {path} | acc={best_val_acc:.4f})")
 
 
 def load_checkpoint(
@@ -177,3 +206,33 @@ def save_metrics_json(path: str, metrics: dict) -> None:
     """
     with open(path, "w") as f:
         json.dump(metrics, f, indent=4)
+def plot_metrics_history(train_losses, val_losses, train_acc, val_acc):
+    # --------------------------------------------------------
+    # 1) FIGURA DE LOSS
+    # --------------------------------------------------------
+    plt.figure(figsize=(6,4))
+    plt.plot(train_losses, label="Train Loss")
+    plt.plot(val_losses, label="Val Loss")
+    plt.title("Loss")
+    plt.xlabel("Epoch")
+    plt.ylabel("Loss")
+    plt.grid(True)
+    plt.legend()
+    plt.tight_layout()
+    plt.savefig("loss.pdf", format="pdf")
+    plt.close()
+
+    # --------------------------------------------------------
+    # 2) FIGURA DE ACCURACY
+    # --------------------------------------------------------
+    plt.figure(figsize=(6,4))
+    plt.plot(train_acc, label="Train Accuracy")
+    plt.plot(val_acc, label="Val Accuracy")
+    plt.title("Accuracy")
+    plt.xlabel("Epoch")
+    plt.ylabel("Accuracy")
+    plt.grid(True)
+    plt.legend()
+    plt.tight_layout()
+    plt.savefig("accuracy.pdf", format="pdf")
+    plt.close()
